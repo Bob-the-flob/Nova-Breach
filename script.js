@@ -1270,6 +1270,7 @@ function updateHearts() {
    }
 }
 function initGame() {
+   resize();
    sound.init();
    player = new PlayerShip();
    bullets = [];
@@ -1297,7 +1298,7 @@ function initGame() {
    const lvlScreen = document.getElementById('levelup-screen');
    if (lvlScreen) lvlScreen.classList.add('hidden');
    const goScreen = document.getElementById('gameover-screen');
-   if (goScreen) goScreen.classList.remove('hidden');
+   if (goScreen) goScreen.classList.add('hidden');
    const pauseScreen = document.getElementById('pause-screen');
    if (pauseScreen) pauseScreen.classList.add('hidden');
    const pauseBtn = document.getElementById('pause-btn');
@@ -1458,7 +1459,7 @@ function update() {
        const inv = invaders[i];
        inv.update();
        // Sortie de l'écran par le bas : uniquement si l'ennemi a dépassé le bas réel de l'écran
-       if (height > 100 && inv.y > height + inv.radius + 10) {
+       if (height > 100 && inv.y > height + inv.radius + 10 && inv.y > 0) {
            sound.playBreach();
            triggerBreachWarning();
            triggerShake(10);
