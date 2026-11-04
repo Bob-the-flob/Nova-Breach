@@ -1587,3 +1587,641 @@ window.onload = function() {
    resize();
    gameLoop();
 };
+/* ==============================================================
+   WAVE 20 BOSS: LE NOBLE DESTRIER
+   Append after the existing game code.
+   ============================================================== */
+(() => {
+    const DESTRIER_NAME = 'Le noble Destrier';
+    const DESTRIER_MAX_HP = 420;
+    const DESTRIER_PIVOT = { x: 256, y: 256 };
+
+    // Geometry and muzzle positions are from project.json.
+    const DESTRIER_SHAPES = [
+        { type: 'circle', cx: 256, cy: 256, r: 121, color: '#ff007f' },
+        { type: 'poly', pts: [[160,192],[160,320],[0,320],[0,192]], color: '#ff007f' },
+        { type: 'poly', pts: [[352,192],[352,320],[512,320],[512,192]], color: '#ff007f' },
+        { type: 'poly', pts: [[320,336],[352,336],[352,384],[320,384]], color: '#ff2a2a' },
+        { type: 'poly', pts: [[192,336],[160,336],[160,384],[192,384]], color: '#ff2a2a' },
+        { type: 'poly', pts: [[32,320],[64,320],[64,352],[32,352]], color: '#ff2a2a' },
+        { type: 'poly', pts: [[480,320],[448,320],[448,352],[480,352]], color: '#ff2a2a' },
+        { type: 'circle', cx: 256, cy: 256, r: 24, color: '#00ff66' }
+    ];
+    const DESTRIER_HITBOX = [
+        [0,320],[32,320],[32,352],[64,352],[64,320],[160,320],
+        [160,384],[192,384],[192,368],[208,368],[224,368],[224,384],
+        [272,384],[272,368],[320,368],[320,384],[352,384],[352,320],
+        [448,320],[448,352],[480,352],[480,320],[512,320],[512,192],
+        [352,192],[352,128],[160,128],[160,192],[0,192]
+    ];
+    const DESTRIER_MUZZLES = [
+        { id: 1, x: 48, y: 352 },
+        { id: 2, x: 464, y: 352 },
+        { id: 3, x: 176, y: 384 },
+        { id: 4, x: 336, y: 384 }
+    ];
+
+    const originalStartWave = startWave;
+    const originalUpdate = update;
+    const originalDraw = draw;
+    const originalTriggerNova = triggerNova;
+    const originalUpdateHearts = updateHearts;
+    const originalEndGame = endGame;
+    const originalCloseUpgradeScreen = closeUpgradeScreen;
+    const originalSelectRandomUpgrade = selectRandomUpgrade;
+    const originalTogglePause = togglePause;
+
+    GameState.BOSS_CUTSCENE = 5;
+    GameState.BOSS_REWARDS = 6;
+
+    let destrier = null;
+    let bossTimerFrames = 0;
+    let totalPlayFrames = 0;
+    let bossRewardStep = 0;
+    let victoryCutsceneFrames = 0;
+
+    function fmtTime(frames) {
+        const seconds = Math.floor(frames / 60);
+        const minutes = Math.floor(seconds / 60);
+        return `${String(minutes).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+    }
+
+    function bossScale() {
+        return Math.max(0.38, Math.min(0.55, (width - 48) / 512));
+    }
+
+    function bossPoint(localX, localY) {
+        const scale = bossScale();
+        return {
+            x: destrier.x + (localX - DESTRIER_PIVOT.x) * scale,
+            y: destrier.y + (localY - DESTRIER_PIVOT.y) * scale
+        };
+    }
+
+    function pointInPolygon(x, y, points) {
+        let inside = false;
+        for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+            const xi = points[i][0], yi = points[i][1];
+            const xj = points[j][0], yj = points[j][1];
+            const crosses = ((yi > y) !== (yj > y)) &&
+                (x < ((xj - xi) * (y - yi)) / ((yj - yi) || 1e-9) + xi);
+            if (crosses) inside = !inside;
+        }
+        return inside;
+    }
+
+    function pointNearSegment(px, py, ax, ay, bx, by, radius) {
+        const dx = bx - ax;
+        const dy = by - ay;
+        const lengthSq = dx * dx + dy * dy || 1;
+        const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / lengthSq));
+        return Math.hypot(px - (ax + t * dx), py - (ay + t * dy)) <= radius;
+    }
+
+    function updateBossHud() {
+        if (!destrier) return;
+        const fill = document.getElementById('boss-health-fill');
+        const text = document.getElementById('boss-health-text');
+        const ratio = Math.max(0, destrier.hp / destrier.maxHp);
+        if (fill) fill.style.width = `${ratio * 100}%`;
+        if (text) text.textContent = `${DESTRIER_NAME} — ${Math.ceil(destrier.hp)} / ${destrier.maxHp}`;
+        if (hudWave) hudWave.textContent = DESTRIER_NAME;
+        if (hudNovaFill) hudNovaFill.style.width = `${(1 - ratio) * 100}%`;
+        if (touchNovaBtn) {
+            touchNovaBtn.classList.remove('ready');
+            touchNovaBtn.classList.add('boss-disabled');
+        }
+    }
+
+    function setBossHealthMode(enabled) {
+        const hud = document.getElementById('hud');
+        const label = hud && hud.querySelector('.hud-panel[style*="text-align: right"] .stat-label');
+        const hearts = document.getElementById('hud-hearts');
+        const bossHud = document.getElementById('boss-health');
+        const novaLabel = document.getElementById('hud-nova-label');
+
+        if (hud) hud.classList.toggle('boss-health-mode', enabled);
+        if (label) label.textContent = enabled ? 'Bouclier' : 'Bouclier Vaisseau';
+        if (hearts) hearts.classList.toggle('boss-health-hidden', enabled);
+        if (bossHud) bossHud.classList.toggle('hidden', !enabled);
+        if (novaLabel) novaLabel.textContent = enabled ? 'Progression Nova' : 'Nova';
+    }
+
+    function beginDestrierFight() {
+        invaders = [];
+        bullets = [];
+        enemyBullets = [];
+        powerups = [];
+        destrier = {
+            x: width / 2,
+            y: Math.max(148, height * 0.26),
+            hp: DESTRIER_MAX_HP,
+            maxHp: DESTRIER_MAX_HP,
+            direction: 1,
+            speed: 2.0,
+            shotCooldown: 50,
+            laserCooldown: 300,
+            warningFrames: 0,
+            laserFrames: 0,
+            lasers: [],
+            stopped: false,
+            shields: [
+                { x: width * 0.35, y: height * 0.62, phase: 0, radius: 19 },
+                { x: width * 0.65, y: height * 0.62, phase: Math.PI, radius: 19 }
+            ]
+        };
+        bossTimerFrames = 0;
+        setBossHealthMode(true);
+        if (player) player.novaCharge = 0;
+        const banner = document.getElementById('wave-banner');
+        if (banner) {
+            banner.textContent = DESTRIER_NAME;
+            banner.classList.add('active');
+            setTimeout(() => banner.classList.remove('active'), 2200);
+        }
+        updateBossHud();
+        updateHearts();
+    }
+
+    startWave = function (waveNum) {
+        if (waveNum === 20) {
+            wave = 20;
+            waveSpawning = false;
+            beginDestrierFight();
+            updateHud();
+            return;
+        }
+        destrier = null;
+        setBossHealthMode(false);
+        originalStartWave(waveNum);
+    };
+
+    updateHearts = function () {
+        if (destrier) {
+            const hearts = document.getElementById('hud-hearts');
+            if (hearts) {
+                hearts.innerHTML = `
+                    <div class="player-health-track" aria-label="Santé du joueur">
+                        <div class="player-health-fill" style="width:${Math.max(0, player.health / player.maxHealth) * 100}%"></div>
+                    </div>
+                    <span class="player-health-count">${player.health} / ${player.maxHealth}</span>
+                `;
+            }
+            return;
+        }
+        originalUpdateHearts();
+    };
+
+    triggerNova = function () {
+        if (destrier) return;
+        originalTriggerNova();
+    };
+
+    togglePause = function () {
+        if (state === GameState.BOSS_CUTSCENE || state === GameState.BOSS_REWARDS) return;
+        originalTogglePause();
+    };
+
+    function beginBossLaserAttack() {
+        const phaseTwo = destrier.hp < destrier.maxHp * 0.5;
+        destrier.stopped = true;
+        destrier.warningFrames = 90;
+        destrier.laserFrames = 0;
+        destrier.lasers = [];
+
+        if (phaseTwo) {
+            // Phase 2 side-cannon lasers target varied points along the bottom edge.
+            for (const muzzle of DESTRIER_MUZZLES.slice(0, 2)) {
+                const start = bossPoint(muzzle.x, muzzle.y);
+                const targetX = 45 + Math.random() * Math.max(1, width - 90);
+                destrier.lasers.push({
+                    x1: start.x, y1: start.y,
+                    x2: targetX, y2: height,
+                    width: 30,
+                    color: '#ff2a2a'
+                });
+            }
+        } else {
+            // Center cannon beams leave a broad, dodgeable gap.
+            for (const muzzle of DESTRIER_MUZZLES.slice(2, 4)) {
+                const start = bossPoint(muzzle.x, muzzle.y);
+                destrier.lasers.push({
+                    x1: start.x, y1: start.y,
+                    x2: start.x, y2: height,
+                    width: 34,
+                    color: '#ff2a2a'
+                });
+            }
+        }
+        sound.playAbility();
+    }
+
+    function updateBoss() {
+        if (!destrier || !player) return;
+        bossTimerFrames++;
+        bossTimerFrames = Math.max(0, bossTimerFrames);
+
+        player.update();
+        // Nova is a boss-progress meter, never a manually activated ability.
+        player.novaCharge = (1 - destrier.hp / destrier.maxHp) * 100;
+
+        const phaseTwo = destrier.hp < destrier.maxHp * 0.5;
+        const bounds = 256 * bossScale() + 8;
+        if (!destrier.stopped) {
+            destrier.x += destrier.direction * destrier.speed * (phaseTwo ? 1.18 : 1);
+            if (destrier.x < bounds || destrier.x > width - bounds) {
+                destrier.direction *= -1;
+                destrier.x = Math.max(bounds, Math.min(width - bounds, destrier.x));
+            }
+        }
+
+        // Two indestructible screen-width shield ships continuously patrol between
+        // the boss and the player. They only intercept player shots.
+        for (const shield of destrier.shields) {
+            shield.phase += phaseTwo ? 0.035 : 0.027;
+            shield.x = width * 0.5 + Math.sin(shield.phase) * width * 0.34;
+            shield.y = Math.min(height - 125, Math.max(destrier.y + 115, height * 0.62));
+        }
+
+        if (destrier.warningFrames > 0) {
+            destrier.warningFrames--;
+            if (destrier.warningFrames === 0) {
+                destrier.laserFrames = 150; // 2.5 seconds at 60 fps
+            }
+        } else if (destrier.laserFrames > 0) {
+            destrier.laserFrames--;
+            // Contact damage is moderated by the player's normal invulnerability timer.
+            for (const laser of destrier.lasers) {
+                if (pointNearSegment(player.x, player.y, laser.x1, laser.y1, laser.x2, laser.y2,
+                    laser.width / 2 + player.radius * 0.45)) {
+                    player.takeDamage();
+                    if (state === GameState.GAMEOVER) return;
+                }
+            }
+            if (destrier.laserFrames === 0) {
+                destrier.stopped = false;
+                destrier.lasers = [];
+            }
+        } else {
+            destrier.stopped = false;
+            destrier.laserCooldown--;
+            if (destrier.laserCooldown <= 0) {
+                beginBossLaserAttack();
+                destrier.laserCooldown = phaseTwo ? 240 : 390;
+            }
+        }
+
+        if (!destrier.stopped) {
+            destrier.shotCooldown--;
+            if (destrier.shotCooldown <= 0) {
+                const interval = phaseTwo ? 42 : 62;
+                for (const muzzle of DESTRIER_MUZZLES.slice(0, 2)) {
+                    const origin = bossPoint(muzzle.x, muzzle.y);
+                    const angle = Math.atan2(player.y - origin.y, player.x - origin.x);
+                    enemyBullets.push(new Bullet(origin.x, origin.y, angle, '#ff0055', true, false));
+                }
+                destrier.shotCooldown = interval;
+            }
+        }
+
+        // Move player bullets, let shields intercept first, then test the project hitbox.
+        for (let i = bullets.length - 1; i >= 0; i--) {
+            const bullet = bullets[i];
+            bullet.update();
+            if (bullet.life <= 0 || bullet.y < -20 || bullet.x < 0 || bullet.x > width) {
+                bullets.splice(i, 1);
+                continue;
+            }
+
+            let blocked = false;
+            for (const shield of destrier.shields) {
+                if (Math.hypot(bullet.x - shield.x, bullet.y - shield.y) < bullet.radius + shield.radius) {
+                    createParticles(bullet.x, bullet.y, '#8ffcff', 3);
+                    bullets.splice(i, 1);
+                    blocked = true;
+                    break;
+                }
+            }
+            if (blocked) continue;
+
+            const scale = bossScale();
+            const localX = (bullet.x - destrier.x) / scale + DESTRIER_PIVOT.x;
+            const localY = (bullet.y - destrier.y) / scale + DESTRIER_PIVOT.y;
+            if (pointInPolygon(localX, localY, DESTRIER_HITBOX)) {
+                const center = bossPoint(256, 256);
+                const weakPointOpen = destrier.laserFrames > 0 &&
+                    Math.hypot(bullet.x - center.x, bullet.y - center.y) < 38 * scale;
+                destrier.hp = Math.max(0, destrier.hp - bullet.damage * (weakPointOpen ? 2 : 1));
+                createParticles(bullet.x, bullet.y, weakPointOpen ? '#00ff66' : '#ff007f', 4);
+                bullets.splice(i, 1);
+                updateBossHud();
+                if (destrier.hp <= 0) {
+                    startDestrierVictory();
+                    return;
+                }
+            }
+        }
+
+        for (let i = enemyBullets.length - 1; i >= 0; i--) {
+            const bullet = enemyBullets[i];
+            bullet.update();
+            if (bullet.life <= 0 || bullet.y > height + 24 ||
+                bullet.x < -24 || bullet.x > width + 24) {
+                enemyBullets.splice(i, 1);
+                continue;
+            }
+            if (Math.hypot(bullet.x - player.x, bullet.y - player.y) <
+                bullet.radius + player.radius * 0.65) {
+                enemyBullets.splice(i, 1);
+                player.takeDamage();
+                if (state === GameState.GAMEOVER) return;
+            }
+        }
+
+        for (let i = particles.length - 1; i >= 0; i--) {
+            particles[i].update();
+            if (particles[i].life <= 0) particles.splice(i, 1);
+        }
+        updateBossHud();
+    }
+
+    function startDestrierVictory() {
+        if (!destrier || state !== GameState.PLAYING) return;
+        state = GameState.BOSS_CUTSCENE;
+        victoryCutsceneFrames = 0;
+        player.novaCharge = 100;
+        sound.playNova();
+        triggerShake(20);
+        shockwaves.push(new Shockwave(player.x, player.y, Math.max(width, height)));
+        enemyBullets = [];
+        bullets = [];
+        destrier.lasers = [];
+        const banner = document.getElementById('wave-banner');
+        if (banner) {
+            banner.textContent = 'NOVA — VICTOIRE';
+            banner.classList.add('active');
+        }
+    }
+
+    function showDestrierVictory() {
+        state = GameState.BOSS_REWARDS;
+        const screen = document.getElementById('victory-screen');
+        const time = document.getElementById('victory-time');
+        if (time) time.textContent = fmtTime(totalPlayFrames);
+        if (screen) screen.classList.remove('hidden');
+    }
+
+    function finishDestrierRewards() {
+        const screen = document.getElementById('levelup-screen');
+        if (screen) screen.classList.add('hidden');
+        const victory = document.getElementById('victory-screen');
+        if (victory) victory.classList.add('hidden');
+
+        // Preserve increased maximum health and hearts; ensure at least 3 current HP.
+        if (player) {
+            player.health = Math.max(3, player.health);
+            player.maxHealth = Math.max(3, player.maxHealth);
+            player.novaCharge = 0;
+        }
+        destrier = null;
+        setBossHealthMode(false);
+        updateHearts();
+        updateHud();
+        state = GameState.PLAYING;
+        startWave(21);
+    }
+
+    function showDestrierRewardChoice() {
+        state = GameState.BOSS_REWARDS;
+        const screen = document.getElementById('levelup-screen');
+        const container = document.getElementById('upgrades-container');
+        const subtitle = document.getElementById('levelup-subtitle');
+        if (!screen || !container) return;
+
+        container.innerHTML = '';
+        const styleChoice = bossRewardStep >= 2;
+        if (subtitle) {
+            subtitle.textContent = styleChoice
+                ? 'RÉCOMPENSE BONUS — CHOISISSEZ VOTRE STYLE'
+                : `RÉCOMPENSE ${bossRewardStep + 1}/2 — CHOISISSEZ UNE AMÉLIORATION`;
+        }
+
+        if (styleChoice) {
+            const card = document.createElement('div');
+            const maxed = player.skinIndex >= SHIP_SKINS.length - 1;
+            card.className = `upgrade-card style-card${maxed ? ' maxed' : ''}`;
+            card.innerHTML = `
+                <div class="upgrade-icon">${STYLE_UPGRADE.icon}</div>
+                <div class="upgrade-info">
+                    <div class="upgrade-title"><span>${STYLE_UPGRADE.name}</span>
+                    <span class="upgrade-level-badge">${maxed ? 'MAX' : `Châssis ${player.skinIndex + 2}/10`}</span></div>
+                    <div class="upgrade-desc">${STYLE_UPGRADE.getDesc(player.skinIndex)}</div>
+                </div>`;
+            card.addEventListener('click', () => {
+                if (!maxed) STYLE_UPGRADE.apply(player);
+                finishDestrierRewards();
+            });
+            container.appendChild(card);
+        } else {
+            RANDOM_UPGRADE_POOL.forEach((upgrade) => {
+                const level = (player.upgrades[upgrade.id] || 0) + 1;
+                const card = document.createElement('div');
+                card.className = 'upgrade-card';
+                card.innerHTML = `
+                    <div class="upgrade-icon">${upgrade.icon}</div>
+                    <div class="upgrade-info">
+                        <div class="upgrade-title"><span>${upgrade.name}</span>
+                        <span class="upgrade-level-badge">Niv. ${level}</span></div>
+                        <div class="upgrade-desc">${upgrade.getDesc(level)}</div>
+                    </div>`;
+                card.addEventListener('click', () => {
+                    player.upgrades[upgrade.id] = level;
+                    upgrade.apply(player, level);
+                    sound.playPowerup();
+                    bossRewardStep++;
+                    showDestrierRewardChoice();
+                });
+                container.appendChild(card);
+            });
+        }
+        screen.classList.remove('hidden');
+    }
+
+    closeUpgradeScreen = function () {
+        if (destrier && state === GameState.BOSS_REWARDS) {
+            const screen = document.getElementById('levelup-screen');
+            if (screen) screen.classList.add('hidden');
+            return;
+        }
+        originalCloseUpgradeScreen();
+    };
+
+    selectRandomUpgrade = function (upgrade) {
+        if (destrier) return;
+        originalSelectRandomUpgrade(upgrade);
+    };
+
+    function drawDestrier() {
+        if (!destrier) return;
+        const scale = bossScale();
+
+        // Telegraphs are visible before their beams fire.
+        if (destrier.warningFrames > 0) {
+            ctx.save();
+            ctx.strokeStyle = 'rgba(255, 42, 42, 0.28)';
+            ctx.lineWidth = 3;
+            ctx.setLineDash([9, 12]);
+            for (const laser of destrier.lasers) {
+                ctx.beginPath();
+                ctx.moveTo(laser.x1, laser.y1);
+                ctx.lineTo(laser.x2, laser.y2);
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
+
+        if (destrier.laserFrames > 0) {
+            for (const laser of destrier.lasers) {
+                ctx.save();
+                ctx.strokeStyle = laser.color;
+                ctx.shadowColor = laser.color;
+                ctx.shadowBlur = 18;
+                ctx.globalAlpha = 0.8;
+                ctx.lineWidth = laser.width;
+                ctx.beginPath();
+                ctx.moveTo(laser.x1, laser.y1);
+                ctx.lineTo(laser.x2, laser.y2);
+                ctx.stroke();
+                ctx.restore();
+            }
+        }
+
+        // Draw the two unbreakable shield ships.
+        for (const shield of destrier.shields) {
+            ctx.save();
+            ctx.translate(shield.x, shield.y);
+            ctx.fillStyle = 'rgba(5, 28, 48, 0.95)';
+            ctx.strokeStyle = '#8ffcff';
+            ctx.shadowColor = '#00f0ff';
+            ctx.shadowBlur = 16;
+            ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            ctx.moveTo(-26, 0);
+            ctx.lineTo(-12, -12);
+            ctx.lineTo(12, -12);
+            ctx.lineTo(26, 0);
+            ctx.lineTo(12, 12);
+            ctx.lineTo(-12, 12);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        ctx.save();
+        ctx.translate(destrier.x, destrier.y);
+        ctx.scale(scale, scale);
+        ctx.translate(-DESTRIER_PIVOT.x, -DESTRIER_PIVOT.y);
+        ctx.lineWidth = 2;
+        for (const shape of DESTRIER_SHAPES) {
+            ctx.beginPath();
+            ctx.strokeStyle = shape.color;
+            ctx.fillStyle = shape.type === 'circle' && shape.r === 24
+                ? 'rgba(0, 255, 102, 0.8)'
+                : 'rgba(30, 5, 25, 0.94)';
+            ctx.shadowColor = shape.color;
+            ctx.shadowBlur = shape.r === 24 ? 18 : 12;
+            if (shape.type === 'circle') {
+                ctx.arc(shape.cx, shape.cy, shape.r, 0, Math.PI * 2);
+            } else {
+                shape.pts.forEach(([x, y], i) => {
+                    if (i === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                });
+                ctx.closePath();
+            }
+            ctx.fill();
+            ctx.stroke();
+        }
+        // Highlight the circular weak point only during active laser volleys.
+        if (destrier.laserFrames > 0) {
+            ctx.beginPath();
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 4;
+            ctx.shadowColor = '#00ff66';
+            ctx.shadowBlur = 22;
+            ctx.arc(256, 256, 34, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+        ctx.restore();
+    }
+
+    update = function () {
+        if (state === GameState.PLAYING) totalPlayFrames++;
+        if (state === GameState.PLAYING && destrier) {
+            updateBoss();
+            return;
+        }
+        if (state === GameState.BOSS_CUTSCENE) {
+            victoryCutsceneFrames++;
+            for (let i = shockwaves.length - 1; i >= 0; i--) {
+                shockwaves[i].update();
+                if (shockwaves[i].finished) shockwaves.splice(i, 1);
+            }
+            if (victoryCutsceneFrames >= 180) showDestrierVictory();
+            return;
+        }
+        if (state === GameState.BOSS_REWARDS) return;
+        originalUpdate();
+    };
+
+    draw = function () {
+        originalDraw();
+        if (destrier && (state === GameState.PLAYING || state === GameState.PAUSED)) {
+            ctx.save();
+            ctx.scale(dpr, dpr);
+            drawDestrier();
+            ctx.restore();
+        } else if (state === GameState.BOSS_CUTSCENE) {
+            ctx.save();
+            ctx.scale(dpr, dpr);
+            drawDestrier();
+            ctx.restore();
+        }
+    };
+
+    endGame = function () {
+        if (destrier) {
+            destrier = null;
+            setBossHealthMode(false);
+        }
+        originalEndGame();
+    };
+
+    // Fresh run: reset the elapsed timer. Regular wave and upgrade pauses are
+    // naturally excluded because only PLAYING updates advance the frame counter.
+    const oldInitGame = initGame;
+    initGame = function () {
+        totalPlayFrames = 0;
+        bossRewardStep = 0;
+        destrier = null;
+        setBossHealthMode(false);
+        oldInitGame();
+    };
+
+    document.addEventListener('click', (event) => {
+        if (event.target && event.target.id === 'victory-continue-btn') {
+            const victory = document.getElementById('victory-screen');
+            if (victory) victory.classList.add('hidden');
+            bossRewardStep = 0;
+            showDestrierRewardChoice();
+        }
+    });
+
+    // Keep the existing HUD text correct after ordinary wave updates too.
+    const oldUpdateHud = updateHud;
+    updateHud = function () {
+        oldUpdateHud();
+        if (destrier) updateBossHud();
+    };
+})();
