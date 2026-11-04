@@ -5,13 +5,20 @@ class RetroAudio {
    constructor() {
        this.ctx = null;
    }
-   init() {
+     init() {
        if (!this.ctx) {
            const AudioCtx = window.AudioContext || window.webkitAudioContext;
-           this.ctx = new AudioCtx();
+           if (!AudioCtx) return;
+
+           try {
+               this.ctx = new AudioCtx();
+           } catch (error) {
+               console.warn('Audio is unavailable; continuing without sound.', error);
+               return;
+           }
        }
        if (this.ctx.state === 'suspended') {
-           this.ctx.resume();
+           this.ctx.resume().catch(() => {});
        }
    }
    playShoot() {
