@@ -203,30 +203,34 @@ const GameState = {
    BOSS_REWARDS: 7
 };
 let state = GameState.MENU;
+let pausedFromState = null;
 
 const keys = { left: false, right: false };
 let isTouching = false;
 let targetX = width / 2;
 
 function togglePause() {
-   if (state === GameState.PLAYING || state === GameState.BOSS_FIGHT || state === GameState.BOSS_CUTSCENE) {
-       if (state === GameState.PLAYING || state === GameState.BOSS_FIGHT) {
-           state = GameState.PAUSED;
-           const pauseScreen = document.getElementById('pause-screen');
-           if (pauseScreen) pauseScreen.classList.remove('hidden');
-           const pauseBtn = document.getElementById('pause-btn');
-           if (pauseBtn) pauseBtn.textContent = 'REPRENDRE';
-       }
-       return;
-   }
-   if (state === GameState.PAUSED) {
-       state = GameState.playing || GameState.PLAYING;
+   if ([GameState.PLAYING, GameState.BOSS_FIGHT, GameState.BOSS_CUTSCENE].includes(state)) {
+       pausedFromState = state;
+       state = GameState.PAUSED;
+
+       const pauseScreen = document.getElementById('pause-screen');
+       if (pauseScreen) pauseScreen.classList.remove('hidden');
+
+       const pauseBtn = document.getElementById('pause-btn');
+       if (pauseBtn) pauseBtn.textContent = 'REPRENDRE';
+   } else if (state === GameState.PAUSED) {
+       state = pausedFromState || GameState.PLAYING;
+       pausedFromState = null;
+
        const pauseScreen = document.getElementById('pause-screen');
        if (pauseScreen) pauseScreen.classList.add('hidden');
+
        const pauseBtn = document.getElementById('pause-btn');
        if (pauseBtn) pauseBtn.textContent = 'PAUSE';
    }
 }
+
 window.addEventListener('keydown', (e) => {
    sound.init();
    if (e.code === 'KeyP' || e.code === 'Escape') {
@@ -779,7 +783,7 @@ class Invader {
                this.speedY = baseDrop * 0.85;
                this.color = '#b042ff';
                this.points = 260;
-               this.teleportCooldown = 0;
+               this.teleportCooldown = Math.floor(Math.random() * 90) + 190;
                break;
            case 'healer':
                this.radius = 16;
@@ -1261,7 +1265,7 @@ function closeUpgradeScreen() {
    if (state === GameState.BOSS_REWARDS) {
        return;
    }
-   if (wave === 20 && bossActive) {
+   if (wave === 15 && bossActive) {
        return;
    }
    startWave(wave + 1);
@@ -1277,7 +1281,7 @@ function startWave(waveNum) {
        setTimeout(() => banner.classList.remove('active'), 1800);
    }
 
-   if (waveNum === 20) {
+   if (waveNum === 15) {
        startBossFight();
        return;
    }
@@ -1781,14 +1785,26 @@ function updateBossFight() {
    }
 }
 function startBossVictoryCutscene() {
-   bossActive = false;
-   boss = null;
+   if (!boss || !player) return;
+
+   // Keep the defeated boss visible while the Nova shockwave reaches it.
+   boss.hp = 0;
+   boss.defeated = true;
+   boss.stopped = true;
+   boss.lasers = [];
+   boss.laserWarning = 0;
+   boss.laserActive = 0;
+
    state = GameState.BOSS_CUTSCENE;
    victoryCutsceneTimer = 0;
    player.novaCharge = 100;
+   enemyBullets = [];
+   bullets = [];
+
    sound.playNova();
    triggerShake(20);
    shockwaves.push(new Shockwave(player.x, player.y, Math.max(width, height)));
+
    const banner = document.getElementById('wave-banner');
    if (banner) {
        banner.textContent = 'NOVA — VICTOIRE';
@@ -1908,6 +1924,9 @@ document.addEventListener('click', (event) => {
 });
 
 function update() {
+  if ([GameState.PLAYING, GameState.BOSS_FIGHT, GameState.BOSS_CUTSCENE].includes(state)) {
+   totalPlaySeconds += 1 / 60;
+}
    if (state === GameState.GAMEOVER) return;
    if (state === GameState.BOSS_FIGHT) {
        updateBossFight();
@@ -1920,6 +1939,12 @@ function update() {
            if (sw.finished) shockwaves.splice(i, 1);
        }
        victoryCutsceneTimer++;
+     if (boss && victoryCutsceneTimer >= 55) {
+   boss = null;
+   bossActive = false;
+   updateHearts();
+   updateHud();
+}
        if (victoryCutsceneTimer >= 180) {
            showVictoryScreen();
        }
@@ -1927,7 +1952,6 @@ function update() {
    }
    if (state === GameState.BOSS_REWARDS) return;
    if (state === GameState.PLAYING) {
-       totalPlaySeconds += 1 / 60;
        if (comboTimer > 0) comboTimer--;
        else if (combo > 1.0) {
            combo = +(combo - 0.05).toFixed(1);
