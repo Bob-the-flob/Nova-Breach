@@ -163,7 +163,6 @@ class RetroAudio {
    }
 }
 const sound = new RetroAudio();
-
 /* ==============================================================
   2. INITIALISATION ET CONTRÔLES HORIZONTAUX
   ============================================================== */
@@ -173,11 +172,10 @@ const breachFlash = document.getElementById('breach-flash');
 let width = window.innerWidth || 800;
 let height = window.innerHeight || 600;
 let dpr = 1;
-
 function resize() {
    dpr = window.devicePixelRatio || 1;
-   width = window.innerWidth || document.documentElement.clientWidth || 800;
-   height = window.innerHeight || document.documentElement.clientHeight || 600;
+   width = window.innerWidth;
+   height = window.innerHeight;
    canvas.width = Math.floor(width * dpr);
    canvas.height = Math.floor(height * dpr);
    canvas.style.width = width + 'px';
@@ -185,13 +183,11 @@ function resize() {
 }
 window.addEventListener('resize', resize);
 resize();
-
 const GameState = { MENU: 0, PLAYING: 1, UPGRADING: 2, GAMEOVER: 3, PAUSED: 4 };
 let state = GameState.MENU;
 const keys = { left: false, right: false };
 let isTouching = false;
 let targetX = width / 2;
-
 function togglePause() {
    if (state === GameState.PLAYING) {
        state = GameState.PAUSED;
@@ -207,7 +203,6 @@ function togglePause() {
        if (pauseBtn) pauseBtn.textContent = 'PAUSE';
    }
 }
-
 window.addEventListener('keydown', (e) => {
    sound.init();
    if (e.code === 'KeyP' || e.code === 'Escape') {
@@ -220,12 +215,10 @@ window.addEventListener('keydown', (e) => {
        if (state === GameState.PLAYING) triggerNova();
    }
 });
-
 window.addEventListener('keyup', (e) => {
    if (e.code === 'ArrowLeft' || e.code === 'KeyA' || e.code === 'KeyQ') keys.left = false;
    if (e.code === 'ArrowRight' || e.code === 'KeyD') keys.right = false;
 });
-
 window.addEventListener('touchstart', (e) => {
    sound.init();
    if (e.touches.length > 0) {
@@ -233,28 +226,23 @@ window.addEventListener('touchstart', (e) => {
        targetX = e.touches[0].clientX;
    }
 }, { passive: true });
-
 window.addEventListener('touchmove', (e) => {
    if (e.touches.length > 0) {
        targetX = e.touches[0].clientX;
    }
 }, { passive: true });
-
 window.addEventListener('touchend', () => {
    isTouching = false;
 });
-
 window.addEventListener('mousemove', (e) => {
    if (!keys.left && !keys.right) {
        targetX = e.clientX;
    }
 });
-
 window.addEventListener('contextmenu', (e) => {
    e.preventDefault();
    if (state === GameState.PLAYING) triggerNova();
 });
-
 const touchNovaBtn = document.getElementById('touch-nova-btn');
 if (touchNovaBtn) {
    touchNovaBtn.addEventListener('touchstart', (e) => {
@@ -267,7 +255,6 @@ if (touchNovaBtn) {
        if (state === GameState.PLAYING) triggerNova();
    });
 }
-
 /* ==============================================================
   3. 10 APPARENCES ÉVOLUTIVES ET AMÉLIORATION STYLE PERMANENTE
   ============================================================== */
@@ -283,7 +270,6 @@ const SHIP_SKINS = [
    { name: 'MK-IX HYPER NOVA', color: '#ff0055', accent: '#ffea00' },
    { name: 'MK-X MONARQUE DIVIN', color: '#ffd700', accent: '#ffffff' }
 ];
-
 const STYLE_UPGRADE = {
    id: 'ship_skin',
    name: 'Style & Évolution Châssis',
@@ -306,7 +292,6 @@ const STYLE_UPGRADE = {
        }
    }
 };
-
 const RANDOM_UPGRADE_POOL = [
    {
        id: 'fire_rate',
@@ -397,7 +382,6 @@ const RANDOM_UPGRADE_POOL = [
        apply: (player, lvl) => { player.comboBonusTime = lvl * 60; }
    }
 ];
-
 /* ==============================================================
   4. VAISSEAU DU JOUEUR AVEC 10 APPARENCES HAUTE PRÉCISION
   ============================================================== */
@@ -668,7 +652,6 @@ class PlayerShip {
        ctx.restore();
    }
 }
-
 /* ==============================================================
   5. PROJECTILES, ENNEMIS & ENTITÉS
   ============================================================== */
@@ -706,7 +689,6 @@ class Bullet {
        ctx.restore();
    }
 }
-
 class Invader {
    constructor(x, y, type, wave) {
        this.baseX = x;
@@ -717,7 +699,6 @@ class Invader {
        this.wobble = Math.random() * Math.PI * 2;
        this.wobbleSpeed = 0.025 + Math.random() * 0.015;
        const baseDrop = 0.42 + Math.min(wave * 0.025, 0.65);
-       
        switch (this.type) {
            case 'dart':
                this.radius = 12;
@@ -728,7 +709,6 @@ class Invader {
                this.dashTimer = Math.floor(Math.random() * 120) + 180;
                this.isDashing = false;
                this.dashDuration = 0;
-               this.targetPlayerChance = Math.min(0.65, 0.45 + (wave * 0.02));
                break;
            case 'tank':
                this.radius = 23;
@@ -739,7 +719,6 @@ class Invader {
                this.shieldActive = false;
                this.shieldCooldown = 220;
                this.shieldDuration = 0;
-               this.targetPlayerChance = Math.min(0.45, 0.25 + (wave * 0.015));
                break;
            case 'splitter':
                this.radius = 17;
@@ -747,7 +726,6 @@ class Invader {
                this.speedY = baseDrop * 0.9;
                this.color = '#33ff55';
                this.points = 210;
-               this.targetPlayerChance = Math.min(0.40, 0.20 + (wave * 0.015));
                break;
            case 'mini_drone':
                this.radius = 9;
@@ -756,7 +734,6 @@ class Invader {
                this.wobbleSpeed = 0.09;
                this.color = '#76ff03';
                this.points = 80;
-               this.targetPlayerChance = 0;
                break;
            case 'disruptor':
                this.radius = 16;
@@ -764,7 +741,6 @@ class Invader {
                this.speedY = baseDrop * 0.8;
                this.color = '#ff00aa';
                this.points = 240;
-               this.targetPlayerChance = 1.0;
                break;
            case 'phantom':
                this.radius = 15;
@@ -773,7 +749,6 @@ class Invader {
                this.color = '#b042ff';
                this.points = 260;
                this.teleportCooldown = Math.floor(Math.random() * 90) + 190;
-               this.targetPlayerChance = Math.min(0.70, 0.50 + (wave * 0.02));
                break;
            case 'healer':
                this.radius = 16;
@@ -782,15 +757,13 @@ class Invader {
                this.color = '#ffff33';
                this.points = 270;
                this.healCooldown = 180;
-               this.targetPlayerChance = 0.0;
                break;
-           default: // scout
+           default:
                this.radius = 14;
                this.maxHp = 1 + Math.floor(wave * 0.2);
                this.speedY = baseDrop;
                this.color = '#00e5ff';
                this.points = 100;
-               this.targetPlayerChance = Math.min(0.35, 0.15 + (wave * 0.015));
                break;
        }
        this.hp = this.maxHp;
@@ -800,7 +773,7 @@ class Invader {
    update() {
        const slowFactor = player ? (1 - player.slowAura) : 1;
        const effectiveSpeedY = this.speedY * slowFactor;
-
+       // Descente d'origine selon la classe
        if (this.type === 'dart') {
            if (this.isDashing) {
                this.y += effectiveSpeedY * 3.0;
@@ -865,11 +838,11 @@ class Invader {
        } else {
            this.y += effectiveSpeedY;
        }
-
+       // Ondulation d'origine autour de leur axe
        this.wobble += this.wobbleSpeed;
        const amp = (this.type === 'mini_drone' ? 36 : 18);
        this.x = this.baseX + Math.sin(this.wobble) * amp;
-
+       // Garde l'ennemi confiné dans l'écran horizontalement sans le bloquer contre le mur
        const minX = this.radius + 6;
        const maxX = width - this.radius - 6;
        if (this.x < minX) {
@@ -879,23 +852,15 @@ class Invader {
            this.x = maxX;
            this.baseX = maxX - amp;
        }
-
        if (this.type !== 'mini_drone') {
            this.shootCooldown--;
            if (this.shootCooldown <= 0 && this.y > 60 && this.y < height - 100) {
-               let angle;
-               if (player && (this.type === 'disruptor' || Math.random() < this.targetPlayerChance)) {
-                   angle = Math.atan2((height - 52) - this.y, player.x - this.x);
-               } else {
-                   angle = Math.PI / 2;
-               }
-
+               const angle = Math.atan2((height - 52) - this.y, player.x - this.x);
                if (this.type === 'disruptor') {
                    enemyBullets.push(new Bullet(this.x, this.y, angle, '#ff00aa', true, true));
                } else {
                    enemyBullets.push(new Bullet(this.x, this.y, angle, '#ff0055', true, false));
                }
-
                const baseCooldown = Math.max(90, 220 - this.wave * 4);
                this.shootCooldown = Math.floor(Math.random() * baseCooldown) + baseCooldown;
            }
@@ -983,7 +948,6 @@ class Invader {
        ctx.restore();
    }
 }
-
 class PowerUp {
    constructor(x, y) {
        this.x = x;
@@ -1043,7 +1007,6 @@ class PowerUp {
        ctx.restore();
    }
 }
-
 class Particle {
    constructor(x, y, vx, vy, size, color, maxLife = 28) {
        this.x = x;
@@ -1073,7 +1036,6 @@ class Particle {
        ctx.restore();
    }
 }
-
 class Shockwave {
    constructor(x, y, maxRadius = 450) {
        this.x = x;
@@ -1102,7 +1064,6 @@ class Shockwave {
        ctx.restore();
    }
 }
-
 /* ==============================================================
   6. GESTION DES VAGUES, LEVEL UP ET PROGRESSION
   ============================================================== */
@@ -1121,11 +1082,9 @@ let kills = 0;
 let shake = 0;
 let waveSpawning = false;
 let highScore = parseInt(localStorage.getItem('neon_invaders_high') || '0', 10);
-
 function triggerShake(amt) {
    shake = Math.max(shake, amt);
 }
-
 function triggerBreachWarning() {
    if (breachFlash) {
        breachFlash.style.opacity = '1';
@@ -1134,7 +1093,6 @@ function triggerBreachWarning() {
        }, 250);
    }
 }
-
 function createParticles(x, y, color, count = 20) {
    if (particles.length > 120) count = Math.min(count, 5);
    for (let i = 0; i < count; i++) {
@@ -1150,7 +1108,6 @@ function createParticles(x, y, color, count = 20) {
        ));
    }
 }
-
 function triggerNova() {
    if (player && player.novaCharge >= 98) {
        player.novaCharge = 0;
@@ -1174,14 +1131,12 @@ function triggerNova() {
        }
    }
 }
-
 function addScore(pts) {
    score += Math.round(pts * combo);
    combo = Math.min(4.0, +(combo + 0.1).toFixed(1));
    comboTimer = 160 + (player ? player.comboBonusTime : 0);
    updateHud();
 }
-
 function presentLevelUpChoices() {
    state = GameState.UPGRADING;
    sound.playLevelUp();
@@ -1236,7 +1191,6 @@ function presentLevelUpChoices() {
    const lvlScreen = document.getElementById('levelup-screen');
    if (lvlScreen) lvlScreen.classList.remove('hidden');
 }
-
 function selectRandomUpgrade(upg) {
    if (!player) return;
    player.upgrades[upg.id] = (player.upgrades[upg.id] || 0) + 1;
@@ -1244,14 +1198,12 @@ function selectRandomUpgrade(upg) {
    sound.playPowerup();
    closeUpgradeScreen();
 }
-
 function closeUpgradeScreen() {
    const lvlScreen = document.getElementById('levelup-screen');
    if (lvlScreen) lvlScreen.classList.add('hidden');
    startWave(wave + 1);
    state = GameState.PLAYING;
 }
-
 function startWave(waveNum) {
    wave = waveNum;
    waveSpawning = true;
@@ -1286,7 +1238,6 @@ function startWave(waveNum) {
    waveSpawning = false;
    updateHud();
 }
-
 /* ==============================================================
   7. HUD ET INTERFACE UTILISATEUR
   ============================================================== */
@@ -1296,7 +1247,6 @@ const hudWave = document.getElementById('hud-wave');
 const hudNovaFill = document.getElementById('hud-nova-fill');
 const hudHearts = document.getElementById('hud-hearts');
 const hudStatus = document.getElementById('hud-status');
-
 function updateHud() {
    if (hudScore) hudScore.textContent = score.toLocaleString();
    if (hudCombo) hudCombo.textContent = `x${combo.toFixed(1)} Combo`;
@@ -1309,7 +1259,6 @@ function updateHud() {
        }
    }
 }
-
 function updateHearts() {
    if (!hudHearts || !player) return;
    hudHearts.innerHTML = '';
@@ -1320,7 +1269,6 @@ function updateHearts() {
        hudHearts.appendChild(h);
    }
 }
-
 function initGame() {
    resize();
    sound.init();
@@ -1357,7 +1305,6 @@ function initGame() {
    if (pauseBtn) pauseBtn.textContent = 'PAUSE';
    state = GameState.PLAYING;
 }
-
 function endGame() {
    state = GameState.GAMEOVER;
    sound.playExplosion(true);
@@ -1376,7 +1323,6 @@ function endGame() {
    const goScreen = document.getElementById('gameover-screen');
    if (goScreen) goScreen.classList.remove('hidden');
 }
-
 /* ==============================================================
   8. CYCLE PRINCIPAL DE MISE À JOUR & DESSIN
   ============================================================== */
@@ -1512,9 +1458,8 @@ function update() {
    for (let i = invaders.length - 1; i >= 0; i--) {
        const inv = invaders[i];
        inv.update();
-
-       // Le joueur ne prend des dégâts que si l'ennemi traverse le bas de l'écran (y > height)
-       if (height > 100 && inv.y >= height) {
+       // Sortie de l'écran par le bas : uniquement si l'ennemi a dépassé le bas réel de l'écran
+       if (height > 100 && inv.y > height + inv.radius + 10 && inv.y > 0) {
            sound.playBreach();
            triggerBreachWarning();
            triggerShake(10);
@@ -1550,7 +1495,6 @@ function update() {
        if (sw.finished) shockwaves.splice(i, 1);
    }
 }
-
 function draw() {
    ctx.save();
    ctx.scale(dpr, dpr);
@@ -1600,13 +1544,11 @@ function draw() {
    }
    ctx.restore();
 }
-
 function gameLoop() {
    update();
    draw();
    requestAnimationFrame(gameLoop);
 }
-
 function bindGameEvents() {
    const startBtn = document.getElementById('start-btn');
    if (startBtn) startBtn.addEventListener('click', initGame);
@@ -1617,13 +1559,11 @@ function bindGameEvents() {
    const resumeBtn = document.getElementById('resume-btn');
    if (resumeBtn) resumeBtn.addEventListener('click', togglePause);
 }
-
 if (document.readyState === 'loading') {
    window.addEventListener('DOMContentLoaded', bindGameEvents);
 } else {
    bindGameEvents();
 }
-
 window.onload = function() {
    resize();
    gameLoop();
