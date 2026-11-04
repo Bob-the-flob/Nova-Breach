@@ -176,8 +176,8 @@ let dpr = 1;
 
 function resize() {
    dpr = window.devicePixelRatio || 1;
-   width = window.innerWidth;
-   height = window.innerHeight;
+   width = window.innerWidth || document.documentElement.clientWidth || 800;
+   height = window.innerHeight || document.documentElement.clientHeight || 600;
    canvas.width = Math.floor(width * dpr);
    canvas.height = Math.floor(height * dpr);
    canvas.style.width = width + 'px';
@@ -728,7 +728,6 @@ class Invader {
                this.dashTimer = Math.floor(Math.random() * 120) + 180;
                this.isDashing = false;
                this.dashDuration = 0;
-               // Dashers can aim with a decent precision
                this.targetPlayerChance = Math.min(0.65, 0.45 + (wave * 0.02));
                break;
            case 'tank':
@@ -765,7 +764,6 @@ class Invader {
                this.speedY = baseDrop * 0.8;
                this.color = '#ff00aa';
                this.points = 240;
-               // Disruptor always targets the player directly
                this.targetPlayerChance = 1.0;
                break;
            case 'phantom':
@@ -784,7 +782,6 @@ class Invader {
                this.color = '#ffff33';
                this.points = 270;
                this.healCooldown = 180;
-               // Medics never aim directly at the player
                this.targetPlayerChance = 0.0;
                break;
            default: // scout
@@ -804,7 +801,6 @@ class Invader {
        const slowFactor = player ? (1 - player.slowAura) : 1;
        const effectiveSpeedY = this.speedY * slowFactor;
 
-       // Descente selon la classe
        if (this.type === 'dart') {
            if (this.isDashing) {
                this.y += effectiveSpeedY * 3.0;
@@ -870,12 +866,10 @@ class Invader {
            this.y += effectiveSpeedY;
        }
 
-       // Ondulation autour de leur axe
        this.wobble += this.wobbleSpeed;
        const amp = (this.type === 'mini_drone' ? 36 : 18);
        this.x = this.baseX + Math.sin(this.wobble) * amp;
 
-       // Garde l'ennemi confiné dans l'écran horizontalement
        const minX = this.radius + 6;
        const maxX = width - this.radius - 6;
        if (this.x < minX) {
@@ -886,16 +880,14 @@ class Invader {
            this.baseX = maxX - amp;
        }
 
-       // Tir des ennemis
        if (this.type !== 'mini_drone') {
            this.shootCooldown--;
            if (this.shootCooldown <= 0 && this.y > 60 && this.y < height - 100) {
                let angle;
-               // Détermine l'angle de tir : tout droit vers le bas (Math.PI / 2) ou ciblé sur le joueur
                if (player && (this.type === 'disruptor' || Math.random() < this.targetPlayerChance)) {
                    angle = Math.atan2((height - 52) - this.y, player.x - this.x);
                } else {
-                   angle = Math.PI / 2; // Tir droit vers l'avant (vers le bas)
+                   angle = Math.PI / 2;
                }
 
                if (this.type === 'disruptor') {
@@ -1358,7 +1350,7 @@ function initGame() {
    const lvlScreen = document.getElementById('levelup-screen');
    if (lvlScreen) lvlScreen.classList.add('hidden');
    const goScreen = document.getElementById('gameover-screen');
-   if (goScreen) goScreen.classList.remove('hidden');
+   if (goScreen) goScreen.classList.add('hidden');
    const pauseScreen = document.getElementById('pause-screen');
    if (pauseScreen) pauseScreen.classList.add('hidden');
    const pauseBtn = document.getElementById('pause-btn');
@@ -1520,7 +1512,9 @@ function update() {
    for (let i = invaders.length - 1; i >= 0; i--) {
        const inv = invaders[i];
        inv.update();
-       if (height > 100 && inv.y > height + inv.radius + 10 && inv.y > 0) {
+
+       // Le joueur ne prend des dégâts que si l'ennemi traverse le bas de l'écran (y > height)
+       if (height > 100 && inv.y >= height) {
            sound.playBreach();
            triggerBreachWarning();
            triggerShake(10);
