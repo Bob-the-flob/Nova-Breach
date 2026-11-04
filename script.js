@@ -855,7 +855,19 @@ class Invader {
        if (this.type !== 'mini_drone') {
            this.shootCooldown--;
            if (this.shootCooldown <= 0 && this.y > 60 && this.y < height - 100) {
-               const angle = Math.atan2((height - 52) - this.y, player.x - this.x);
+                const angle = Math.atan2((height - 52) - this.y, player.x - this.x);
+                const aimChance = {
+                    disruptor: 1.0,
+                    healer: 0.0,
+                    scout: 0.15,
+                    tank: 0.25,
+                    splitter: 0.20,
+                    dart: 0.45,
+                    phantom: 0.50
+                }[this.type] ?? 0.15;
+                const angle = Math.random() < aimChance
+                    ? Math.atan2((height - 52) - this.y, player.x - this.x)
+                    : Math.PI / 2;
                if (this.type === 'disruptor') {
                    enemyBullets.push(new Bullet(this.x, this.y, angle, '#ff00aa', true, true));
                } else {
