@@ -5,11 +5,10 @@ class RetroAudio {
    constructor() {
        this.ctx = null;
    }
-     init() {
+   init() {
        if (!this.ctx) {
            const AudioCtx = window.AudioContext || window.webkitAudioContext;
            if (!AudioCtx) return;
-
            try {
                this.ctx = new AudioCtx();
            } catch (error) {
@@ -59,7 +58,7 @@ class RetroAudio {
        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
        const output = buffer.getChannelData(0);
        for (let i = 0; i < bufferSize; i++) {
-           output[i] = Math.random() * 2 - 1;
+           output[i] = (Math.random() * 2) - 1;
        }
        const noise = this.ctx.createBufferSource();
        noise.buffer = buffer;
@@ -170,6 +169,7 @@ class RetroAudio {
    }
 }
 const sound = new RetroAudio();
+
 /* ==============================================================
   2. INITIALISATION ET CONTRÔLES HORIZONTAUX
   ============================================================== */
@@ -179,6 +179,7 @@ const breachFlash = document.getElementById('breach-flash');
 let width = window.innerWidth || 800;
 let height = window.innerHeight || 600;
 let dpr = 1;
+
 function resize() {
    dpr = window.devicePixelRatio || 1;
    width = window.innerWidth;
@@ -190,20 +191,36 @@ function resize() {
 }
 window.addEventListener('resize', resize);
 resize();
-const GameState = { MENU: 0, PLAYING: 1, UPGRADING: 2, GAMEOVER: 3, PAUSED: 4 };
+
+const GameState = {
+   MENU: 0,
+   PLAYING: 1,
+   UPGRADING: 2,
+   GAMEOVER: 3,
+   PAUSED: 4,
+   BOSS_FIGHT: 5,
+   BOSS_CUTSCENE: 6,
+   BOSS_REWARDS: 7
+};
 let state = GameState.MENU;
+
 const keys = { left: false, right: false };
 let isTouching = false;
 let targetX = width / 2;
+
 function togglePause() {
-   if (state === GameState.PLAYING) {
-       state = GameState.PAUSED;
-       const pauseScreen = document.getElementById('pause-screen');
-       if (pauseScreen) pauseScreen.classList.remove('hidden');
-       const pauseBtn = document.getElementById('pause-btn');
-       if (pauseBtn) pauseBtn.textContent = 'REPRENDRE';
-   } else if (state === GameState.PAUSED) {
-       state = GameState.PLAYING;
+   if (state === GameState.PLAYING || state === GameState.BOSS_FIGHT || state === GameState.BOSS_CUTSCENE) {
+       if (state === GameState.PLAYING || state === GameState.BOSS_FIGHT) {
+           state = GameState.PAUSED;
+           const pauseScreen = document.getElementById('pause-screen');
+           if (pauseScreen) pauseScreen.classList.remove('hidden');
+           const pauseBtn = document.getElementById('pause-btn');
+           if (pauseBtn) pauseBtn.textContent = 'REPRENDRE';
+       }
+       return;
+   }
+   if (state === GameState.PAUSED) {
+       state = GameState.playing || GameState.PLAYING;
        const pauseScreen = document.getElementById('pause-screen');
        if (pauseScreen) pauseScreen.classList.add('hidden');
        const pauseBtn = document.getElementById('pause-btn');
@@ -219,7 +236,7 @@ window.addEventListener('keydown', (e) => {
    if (e.code === 'ArrowLeft' || e.code === 'KeyA' || e.code === 'KeyQ') keys.left = true;
    if (e.code === 'ArrowRight' || e.code === 'KeyD') keys.right = true;
    if (e.code === 'Space' || e.key.toLowerCase() === 'e') {
-       if (state === GameState.PLAYING) triggerNova();
+       if (state === GameState.PLAYING || state === GameState.BOSS_FIGHT) triggerNova();
    }
 });
 window.addEventListener('keyup', (e) => {
@@ -248,22 +265,27 @@ window.addEventListener('mousemove', (e) => {
 });
 window.addEventListener('contextmenu', (e) => {
    e.preventDefault();
-   if (state === GameState.PLAYING) triggerNova();
+   if (state === GameState.PLAYING || state === GameState.BOSS_FIGHT) triggerNova();
 });
 const touchNovaBtn = document.getElementById('touch-nova-btn');
 if (touchNovaBtn) {
    touchNovaBtn.addEventListener('touchstart', (e) => {
        e.preventDefault();
        sound.init();
-       if (state === GameState.PLAYING) triggerNova();
+       if ((state === GameState.PLAYING || state === GameState.BOSS_FIGHT) && !bossActive) {
+           triggerNova();
+       }
    }, { passive: false });
    touchNovaBtn.addEventListener('click', () => {
        sound.init();
-       if (state === GameState.PLAYING) triggerNova();
+       if ((state === GameState.PLAYING || state === GameState.BOSS_FIGHT) && !bossActive) {
+           triggerNova();
+       }
    });
 }
+
 /* ==============================================================
-  3. 10 APPARENCES ÉVOLUTIVES ET AMÉLIORATION STYLE PERMANENTE
+  3. STYLE / UPGRADES
   ============================================================== */
 const SHIP_SKINS = [
    { name: 'MK-I SCOUT', color: '#00f0ff', accent: '#0088ff' },
@@ -277,6 +299,7 @@ const SHIP_SKINS = [
    { name: 'MK-IX HYPER NOVA', color: '#ff0055', accent: '#ffea00' },
    { name: 'MK-X MONARQUE DIVIN', color: '#ffd700', accent: '#ffffff' }
 ];
+
 const STYLE_UPGRADE = {
    id: 'ship_skin',
    name: 'Style & Évolution Châssis',
@@ -290,7 +313,7 @@ const STYLE_UPGRADE = {
        return `Évolution vers [${next.name}] : Châssis blindé néon + Ailes vectorielles`;
    },
    apply: (player) => {
-       if (player.skinIndex < SHIP_SKINS.length - 1) {
+       if (player && player.skinIndex < SHIP_SKINS.length - 1) {
            player.skinIndex++;
            const tierEl = document.getElementById('hud-tier');
            if (tierEl) tierEl.textContent = SHIP_SKINS[player.skinIndex].name;
@@ -299,6 +322,7 @@ const STYLE_UPGRADE = {
        }
    }
 };
+
 const RANDOM_UPGRADE_POOL = [
    {
        id: 'fire_rate',
@@ -389,8 +413,9 @@ const RANDOM_UPGRADE_POOL = [
        apply: (player, lvl) => { player.comboBonusTime = lvl * 60; }
    }
 ];
+
 /* ==============================================================
-  4. VAISSEAU DU JOUEUR AVEC 10 APPARENCES HAUTE PRÉCISION
+  4. PLAYERSHIP
   ============================================================== */
 class PlayerShip {
    constructor() {
@@ -446,7 +471,7 @@ class PlayerShip {
                createParticles(this.x, this.y, '#00f0ff', 12);
            }
        }
-       if (this.novaCharge < 100) {
+       if (this.novaCharge < 100 && state !== GameState.BOSS_FIGHT) {
            this.novaCharge += this.novaChargeRate;
        }
        this.fireTimer++;
@@ -659,9 +684,7 @@ class PlayerShip {
        ctx.restore();
    }
 }
-/* ==============================================================
-  5. PROJECTILES, ENNEMIS & ENTITÉS
-  ============================================================== */
+
 class Bullet {
    constructor(x, y, angle, color = '#00f0ff', isEnemy = false, isEmp = false, damage = 1, pierce = 0) {
        this.x = x;
@@ -696,6 +719,7 @@ class Bullet {
        ctx.restore();
    }
 }
+
 class Invader {
    constructor(x, y, type, wave) {
        this.baseX = x;
@@ -755,7 +779,7 @@ class Invader {
                this.speedY = baseDrop * 0.85;
                this.color = '#b042ff';
                this.points = 260;
-               this.teleportCooldown = Math.floor(Math.random() * 90) + 190;
+               this.teleportCooldown = 0;
                break;
            case 'healer':
                this.radius = 16;
@@ -780,7 +804,7 @@ class Invader {
    update() {
        const slowFactor = player ? (1 - player.slowAura) : 1;
        const effectiveSpeedY = this.speedY * slowFactor;
-       // Descente d'origine selon la classe
+
        if (this.type === 'dart') {
            if (this.isDashing) {
                this.y += effectiveSpeedY * 3.0;
@@ -845,11 +869,11 @@ class Invader {
        } else {
            this.y += effectiveSpeedY;
        }
-       // Ondulation d'origine autour de leur axe
+
        this.wobble += this.wobbleSpeed;
        const amp = (this.type === 'mini_drone' ? 36 : 18);
        this.x = this.baseX + Math.sin(this.wobble) * amp;
-       // Garde l'ennemi confiné dans l'écran horizontalement sans le bloquer contre le mur
+
        const minX = this.radius + 6;
        const maxX = width - this.radius - 6;
        if (this.x < minX) {
@@ -859,7 +883,8 @@ class Invader {
            this.x = maxX;
            this.baseX = maxX - amp;
        }
-              if (this.type !== 'mini_drone') {
+
+       if (this.type !== 'mini_drone') {
            this.shootCooldown--;
            if (this.shootCooldown <= 0 && this.y > 60 && this.y < height - 100) {
                const aimChance = {
@@ -944,7 +969,7 @@ class Invader {
        } else if (this.type === 'healer') {
            const r = this.radius * 0.7;
            ctx.rect(-r * 0.35, -r, r * 0.7, r * 2);
-           ctx.rect(-r, -r * 0.35, r * 2, r * 0.7);
+           ctx.rect(-r, -r * 0.35, r * 0.7, r * 0.7);
        } else {
            ctx.moveTo(0, this.radius);
            ctx.lineTo(-this.radius, -this.radius);
@@ -967,6 +992,7 @@ class Invader {
        ctx.restore();
    }
 }
+
 class PowerUp {
    constructor(x, y) {
        this.x = x;
@@ -1026,6 +1052,7 @@ class PowerUp {
        ctx.restore();
    }
 }
+
 class Particle {
    constructor(x, y, vx, vy, size, color, maxLife = 28) {
        this.x = x;
@@ -1055,6 +1082,7 @@ class Particle {
        ctx.restore();
    }
 }
+
 class Shockwave {
    constructor(x, y, maxRadius = 450) {
        this.x = x;
@@ -1083,9 +1111,7 @@ class Shockwave {
        ctx.restore();
    }
 }
-/* ==============================================================
-  6. GESTION DES VAGUES, LEVEL UP ET PROGRESSION
-  ============================================================== */
+
 let player;
 let bullets = [];
 let enemyBullets = [];
@@ -1101,6 +1127,13 @@ let kills = 0;
 let shake = 0;
 let waveSpawning = false;
 let highScore = parseInt(localStorage.getItem('neon_invaders_high') || '0', 10);
+
+let totalPlaySeconds = 0;
+let bossActive = false;
+let boss = null;
+let bossRewardStage = 0;
+let victoryCutsceneTimer = 0;
+
 function triggerShake(amt) {
    shake = Math.max(shake, amt);
 }
@@ -1128,6 +1161,9 @@ function createParticles(x, y, color, count = 20) {
    }
 }
 function triggerNova() {
+   if (state === GameState.BOSS_FIGHT && boss) {
+       return;
+   }
    if (player && player.novaCharge >= 98) {
        player.novaCharge = 0;
        sound.playNova();
@@ -1167,14 +1203,14 @@ function presentLevelUpChoices() {
    const styleCard = document.createElement('div');
    styleCard.className = 'upgrade-card style-card' + (isMaxed ? ' maxed' : '');
    styleCard.innerHTML = `
-       <div class="upgrade-icon" style="background: rgba(255, 234, 0, 0.15); border-color: #ffea00;">${STYLE_UPGRADE.icon}</div>
-       <div class="upgrade-info">
-           <div class="upgrade-title">
-               <span>${STYLE_UPGRADE.name}</span>
-               <span class="upgrade-level-badge">${isMaxed ? 'MAX' : `Châssis ${currentSkinIdx + 2}/10`}</span>
-           </div>
-           <div class="upgrade-desc" style="color: #f1f5f9;">${STYLE_UPGRADE.getDesc(currentSkinIdx)}</div>
-       </div>
+      <div class="upgrade-icon" style="background: rgba(255, 234, 0, 0.15); border-color: #ffea00;">${STYLE_UPGRADE.icon}</div>
+      <div class="upgrade-info">
+         <div class="upgrade-title">
+            <span>${STYLE_UPGRADE.name}</span>
+            <span class="upgrade-level-badge">${isMaxed ? 'MAX' : `Châssis ${currentSkinIdx + 2}/10`}</span>
+         </div>
+         <div class="upgrade-desc" style="color: #f1f5f9;">${STYLE_UPGRADE.getDesc(currentSkinIdx)}</div>
+      </div>
    `;
    if (!isMaxed) {
        styleCard.onclick = () => {
@@ -1183,6 +1219,7 @@ function presentLevelUpChoices() {
        };
    }
    container.appendChild(styleCard);
+
    const shuffled = [...RANDOM_UPGRADE_POOL].sort(() => Math.random() - 0.5);
    const choices = shuffled.slice(0, 3);
    choices.forEach(upg => {
@@ -1191,20 +1228,21 @@ function presentLevelUpChoices() {
        const card = document.createElement('div');
        card.className = 'upgrade-card';
        card.innerHTML = `
-           <div class="upgrade-icon">${upg.icon}</div>
-           <div class="upgrade-info">
-               <div class="upgrade-title">
-                   <span>${upg.name}</span>
-                   <span class="upgrade-level-badge">Niv. ${nextLvl}</span>
-               </div>
-               <div class="upgrade-desc">${upg.getDesc(nextLvl)}</div>
-           </div>
+          <div class="upgrade-icon">${upg.icon}</div>
+          <div class="upgrade-info">
+             <div class="upgrade-title">
+                <span>${upg.name}</span>
+                <span class="upgrade-level-badge">Niv. ${nextLvl}</span>
+             </div>
+             <div class="upgrade-desc">${upg.getDesc(nextLvl)}</div>
+          </div>
        `;
        card.onclick = () => {
            selectRandomUpgrade(upg);
        };
        container.appendChild(card);
    });
+
    const subTitle = document.getElementById('levelup-subtitle');
    if (subTitle) subTitle.textContent = `FIN DE LA VAGUE ${wave} — AMÉLIORATION DISPONIBLE`;
    const lvlScreen = document.getElementById('levelup-screen');
@@ -1220,6 +1258,12 @@ function selectRandomUpgrade(upg) {
 function closeUpgradeScreen() {
    const lvlScreen = document.getElementById('levelup-screen');
    if (lvlScreen) lvlScreen.classList.add('hidden');
+   if (state === GameState.BOSS_REWARDS) {
+       return;
+   }
+   if (wave === 20 && bossActive) {
+       return;
+   }
    startWave(wave + 1);
    state = GameState.PLAYING;
 }
@@ -1232,6 +1276,12 @@ function startWave(waveNum) {
        banner.classList.add('active');
        setTimeout(() => banner.classList.remove('active'), 1800);
    }
+
+   if (waveNum === 20) {
+       startBossFight();
+       return;
+   }
+
    const cols = Math.min(7, Math.max(4, Math.floor(width / 80)));
    const rows = Math.min(5, 2 + Math.floor((wave - 1) / 3));
    const colSpacing = Math.min(85, (width - 70) / cols);
@@ -1257,19 +1307,24 @@ function startWave(waveNum) {
    waveSpawning = false;
    updateHud();
 }
-/* ==============================================================
-  7. HUD ET INTERFACE UTILISATEUR
-  ============================================================== */
+
 const hudScore = document.getElementById('hud-score');
 const hudCombo = document.getElementById('hud-combo');
 const hudWave = document.getElementById('hud-wave');
 const hudNovaFill = document.getElementById('hud-nova-fill');
 const hudHearts = document.getElementById('hud-hearts');
 const hudStatus = document.getElementById('hud-status');
+
 function updateHud() {
    if (hudScore) hudScore.textContent = score.toLocaleString();
    if (hudCombo) hudCombo.textContent = `x${combo.toFixed(1)} Combo`;
-   if (hudWave) hudWave.textContent = wave;
+   if (hudWave) {
+       if (bossActive) {
+           hudWave.textContent = 'Le noble Destrier';
+       } else {
+           hudWave.textContent = wave;
+       }
+   }
    if (hudStatus) {
        if (player && player.empTimer > 0) {
            hudStatus.classList.remove('hidden');
@@ -1277,9 +1332,36 @@ function updateHud() {
            hudStatus.classList.add('hidden');
        }
    }
+   if (hudNovaFill) {
+       if (bossActive) {
+           hudNovaFill.style.width = `${Math.max(0, Math.min(100, (1 - boss.hp / boss.maxHp) * 100))}%`;
+       } else {
+           hudNovaFill.style.width = `${player ? player.novaCharge : 0}%`;
+       }
+   }
+   if (touchNovaBtn) {
+       if (bossActive) {
+           touchNovaBtn.classList.add('boss-disabled');
+           touchNovaBtn.classList.remove('ready');
+       } else if (player && player.novaCharge >= 98) {
+           touchNovaBtn.classList.add('ready');
+           touchNovaBtn.classList.remove('boss-disabled');
+       } else {
+           touchNovaBtn.classList.remove('ready');
+           touchNovaBtn.classList.remove('boss-disabled');
+       }
+   }
 }
 function updateHearts() {
    if (!hudHearts || !player) return;
+   if (bossActive) {
+       hudHearts.innerHTML = `
+          <div class="player-health-bar">
+             <div class="player-health-fill" style="width:${Math.max(0, Math.min(100, (player.health / player.maxHealth) * 100))}%"></div>
+          </div>
+       `;
+       return;
+   }
    hudHearts.innerHTML = '';
    for (let i = 0; i < player.maxHealth; i++) {
        const h = document.createElement('span');
@@ -1302,6 +1384,11 @@ function initGame() {
    keys.left = false;
    keys.right = false;
    isTouching = false;
+   totalPlaySeconds = 0;
+   bossActive = false;
+   boss = null;
+   bossRewardStage = 0;
+   victoryCutsceneTimer = 0;
    const tierEl = document.getElementById('hud-tier');
    if (tierEl && typeof SHIP_SKINS !== 'undefined' && SHIP_SKINS.length > 0) {
        tierEl.textContent = SHIP_SKINS[0].name;
@@ -1310,6 +1397,8 @@ function initGame() {
    combo = 1.0;
    comboTimer = 0;
    kills = 0;
+   player.maxHealth = 3;
+   player.health = 3;
    updateHearts();
    startWave(1);
    const startScreen = document.getElementById('start-screen');
@@ -1342,178 +1431,672 @@ function endGame() {
    const goScreen = document.getElementById('gameover-screen');
    if (goScreen) goScreen.classList.remove('hidden');
 }
-/* ==============================================================
-  8. CYCLE PRINCIPAL DE MISE À JOUR & DESSIN
-  ============================================================== */
-function update() {
-   if (state !== GameState.PLAYING) return;
-   if (comboTimer > 0) {
-       comboTimer--;
-   } else if (combo > 1.0) {
-       combo = +(combo - 0.05).toFixed(1);
-       comboTimer = 30;
-       updateHud();
+function pointInPolygon(x, y, points) {
+   let inside = false;
+   for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+       let xi = points[i][0], yi = points[i][1];
+       let xj = points[j][0], yj = points[j][1];
+       let intersects = ((yi > y) !== (yj > y)) &&
+           (x < ((xj - xi) * (y - yi)) / ((yj - yi) || 1e-9) + xi);
+       if (intersects) inside = !inside;
    }
+   return inside;
+}
+function pointNearSegment(px, py, ax, ay, bx, by, radius) {
+   const dx = bx - ax;
+   const dy = by - ay;
+   const lengthSq = dx * dx + dy * dy || 1;
+   const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / lengthSq));
+   return Math.hypot(px - (ax + t * dx), py - (ay + t * dy)) <= radius;
+}
+const DESTRIER_PROJECT = {
+   shapes: [
+      { type: 'circle', cx: 256, cy: 256, r: 121, color: '#ff007f', stroke: 2 },
+      { type: 'poly', pts: [[160,192],[160,320],[0,320],[0,192]], color: '#ff007f', stroke: 2 },
+      { type: 'poly', pts: [[352,192],[352,320],[512,320],[512,192]], color: '#ff007f', stroke: 2 },
+      { type: 'poly', pts: [[320,336],[352,336],[352,384],[320,384]], color: '#ff2a2a', stroke: 2 },
+      { type: 'poly', pts: [[192,336],[160,336],[160,384],[192,384]], color: '#ff2a2a', stroke: 2 },
+      { type: 'poly', pts: [[32,320],[64,320],[64,352],[32,352]], color: '#ff2a2a', stroke: 2 },
+      { type: 'poly', pts: [[480,320],[448,320],[448,352],[480,352]], color: '#ff2a2a', stroke: 2 },
+      { type: 'circle', cx: 256, cy: 256, r: 24, color: '#00ff66', stroke: 2 }
+   ],
+   hitbox: [
+      [0,320],[32,320],[32,352],[64,352],[64,320],[160,320],[160,384],[192,384],
+      [192,368],[208,368],[224,368],[224,384],[272,384],[272,368],[320,368],[320,384],
+      [352,384],[352,320],[448,320],[448,352],[480,352],[480,320],[512,320],[512,192],
+      [352,192],[352,128],[160,128],[160,192],[0,192]
+   ],
+   muzzles: [
+      { id: 1, x: 48, y: 352 },
+      { id: 2, x: 464, y: 352 },
+      { id: 3, x: 176, y: 384 },
+      { id: 4, x: 336, y: 384 }
+   ],
+   pivot: { x: 256, y: 256 }
+};
+
+function startBossFight() {
+   bossActive = true;
+   boss = {
+       x: width / 2,
+       y: Math.max(140, height * 0.28),
+       hp: 420,
+       maxHp: 420,
+       dir: 1,
+       speed: 2.2,
+       shotCooldown: 40,
+       laserCooldown: 330,
+       laserWarning: 0,
+       laserActive: 0,
+       lasers: [],
+       stopped: false,
+       shields: [
+           { x: width * 0.35, y: height * 0.62, radius: 18, phase: 0 },
+           { x: width * 0.65, y: height * 0.62, radius: 18, phase: Math.PI }
+       ]
+   };
+   state = GameState.BOSS_FIGHT;
+   invaders = [];
+   enemyBullets = [];
+   bullets = [];
+   powerups = [];
+   player.novaCharge = 0;
+   updateHearts();
+   updateHud();
+   const banner = document.getElementById('wave-banner');
+   if (banner) {
+       banner.textContent = 'Le noble Destrier';
+       banner.classList.add('active');
+       setTimeout(() => banner.classList.remove('active'), 2100);
+   }
+}
+function bossLocalPoint(localX, localY) {
+   const scale = Math.max(0.42, Math.min(0.52, (width - 80) / 512));
+   return {
+       x: boss.x + (localX - DESTRIER_PROJECT.pivot.x) * scale,
+       y: boss.y + (localY - DESTRIER_PROJECT.pivot.y) * scale
+   };
+}
+function beginBossLaserPattern() {
+   const phaseTwo = boss.hp < boss.maxHp * 0.5;
+   boss.stopped = true;
+   boss.laserWarning = 90;
+   boss.laserActive = 0;
+   boss.lasers = [];
+   if (phaseTwo) {
+       for (let i = 0; i < 2; i++) {
+           const muzzle = DESTRIER_PROJECT.muzzles[i];
+           const start = bossLocalPoint(muzzle.x, muzzle.y);
+           const targetX = 50 + Math.random() * (width - 100);
+           const targetY = height * (0.65 + Math.random() * 0.2);
+           boss.lasers.push({
+               x1: start.x,
+               y1: start.y,
+               x2: targetX,
+               y2: targetY,
+               width: 30,
+               color: '#ff2a2a'
+           });
+       }
+   } else {
+       const left = bossLocalPoint(DESTRIER_PROJECT.muzzles[2].x, DESTRIER_PROJECT.muzzles[2].y);
+       const right = bossLocalPoint(DESTRIER_PROJECT.muzzles[3].x, DESTRIER_PROJECT.muzzles[3].y);
+       boss.lasers.push({
+           x1: left.x,
+           y1: left.y,
+           x2: left.x,
+           y2: height,
+           width: 34,
+           color: '#ff2a2a'
+       });
+       boss.lasers.push({
+           x1: right.x,
+           y1: right.y,
+           x2: right.x,
+           y2: height,
+           width: 34,
+           color: '#ff2a2a'
+       });
+   }
+   sound.playAbility();
+}
+function drawBoss() {
+   if (!boss || !bossActive) return;
+   const scale = Math.max(0.42, Math.min(0.52, (width - 80) / 512));
+
+   if (boss.laserWarning > 0) {
+       ctx.save();
+       ctx.strokeStyle = 'rgba(255, 42, 42, 0.28)';
+       ctx.setLineDash([8, 10]);
+       ctx.lineWidth = 3;
+       for (let i = 0; i < boss.lasers.length; i++) {
+           const laser = boss.lasers[i];
+           ctx.beginPath();
+           ctx.moveTo(laser.x1, laser.y1);
+           ctx.lineTo(laser.x2, laser.y2);
+           ctx.stroke();
+       }
+       ctx.restore();
+   }
+
+   if (boss.laserActive > 0) {
+       ctx.save();
+       ctx.strokeStyle = '#ff0033';
+       ctx.shadowColor = '#ff0033';
+       ctx.shadowBlur = 18;
+       ctx.lineWidth = 2;
+       for (let i = 0; i < boss.lasers.length; i++) {
+           const laser = boss.lasers[i];
+           ctx.beginPath();
+           ctx.moveTo(laser.x1, laser.y1);
+           ctx.lineTo(laser.x2, laser.y2);
+           ctx.stroke();
+       }
+       ctx.restore();
+   }
+
+   for (let i = 0; i < boss.shields.length; i++) {
+       const shield = boss.shields[i];
+       ctx.save();
+       ctx.translate(shield.x, shield.y);
+       ctx.fillStyle = 'rgba(7, 15, 30, 0.95)';
+       ctx.strokeStyle = '#8ffcff';
+       ctx.shadowColor = '#00f0ff';
+       ctx.shadowBlur = 18;
+       ctx.lineWidth = 2.5;
+       ctx.beginPath();
+       ctx.moveTo(-24, 0);
+       ctx.lineTo(-12, -12);
+       ctx.lineTo(12, -12);
+       ctx.lineTo(24, 0);
+       ctx.lineTo(12, 12);
+       ctx.lineTo(-12, 12);
+       ctx.closePath();
+       ctx.fill();
+       ctx.stroke();
+       ctx.restore();
+   }
+
+   ctx.save();
+   ctx.translate(boss.x, boss.y);
+   ctx.scale(scale, scale);
+   ctx.translate(-DESTRIER_PROJECT.pivot.x, -DESTRIER_PROJECT.pivot.y);
+
+   for (let i = 0; i < DESTRIER_PROJECT.shapes.length; i++) {
+       const shape = DESTRIER_PROJECT.shapes[i];
+       ctx.beginPath();
+       ctx.strokeStyle = shape.color;
+       ctx.fillStyle = shape.type === 'circle'
+           ? (shape.r === 24 ? 'rgba(0,255,102,0.9)' : 'rgba(30,5,25,0.92)')
+           : 'rgba(30,5,25,0.92)';
+       ctx.shadowColor = shape.color;
+       ctx.shadowBlur = shape.r === 24 ? 18 : 12;
+       if (shape.type === 'circle') {
+           ctx.arc(shape.cx, shape.cy, shape.r, 0, Math.PI * 2);
+       } else {
+           shape.pts.forEach((pt, idx) => {
+               if (idx === 0) ctx.moveTo(pt[0], pt[1]);
+               else ctx.lineTo(pt[0], pt[1]);
+           });
+           ctx.closePath();
+       }
+       ctx.fill();
+       ctx.stroke();
+   }
+
+   if (boss.laserActive > 0) {
+       ctx.beginPath();
+       ctx.strokeStyle = '#ffffff';
+       ctx.lineWidth = 3;
+       ctx.shadowColor = '#00ff66';
+       ctx.shadowBlur = 20;
+       ctx.arc(256, 256, 34, 0, Math.PI * 2);
+       ctx.stroke();
+   }
+   ctx.restore();
+}
+function updateBossFight() {
+   if (!boss || !player) return;
+
    player.update();
-   if (hudNovaFill) hudNovaFill.style.width = `${player.novaCharge}%`;
-   if (touchNovaBtn) {
-       if (player.novaCharge >= 98) {
-           touchNovaBtn.classList.add('ready');
-       } else {
-           touchNovaBtn.classList.remove('ready');
+   player.novaCharge = (1 - boss.hp / boss.maxHp) * 100;
+
+   const phaseTwo = boss.hp < boss.maxHp * 0.5;
+
+   for (let i = 0; i < boss.shields.length; i++) {
+       const shield = boss.shields[i];
+       shield.phase = (shield.phase || 0) + (phaseTwo ? 0.04 : 0.03);
+       shield.x = width * 0.5 + Math.sin(shield.phase) * (width * 0.28);
+       shield.y = Math.min(height - 120, Math.max(boss.y + 120, height * 0.62));
+   }
+
+   if (!boss.stopped) {
+       boss.x += boss.dir * boss.speed * (phaseTwo ? 1.2 : 1);
+       if (boss.x < 110 || boss.x > width - 110) {
+           boss.dir *= -1;
+           boss.x = Math.max(110, Math.min(width - 110, boss.x));
        }
    }
-   if (!waveSpawning && invaders.length === 0) {
-       if (wave % 5 === 0) {
-           presentLevelUpChoices();
-       } else {
-           startWave(wave + 1);
+
+   if (boss.laserWarning > 0) {
+       boss.laserWarning--;
+       if (boss.laserWarning === 0) {
+           boss.laserActive = 150;
        }
-       return;
+   } else if (boss.laserActive > 0) {
+       boss.laserActive--;
+       for (let i = 0; i < boss.lasers.length; i++) {
+           const laser = boss.lasers[i];
+           const hit = pointNearSegment(player.x, player.y, laser.x1, laser.y1, laser.x2, laser.y2, laser.width / 2 + player.radius * 0.6);
+           if (hit) {
+               player.takeDamage();
+               if (state === GameState.GAMEOVER) return;
+           }
+       }
+       if (boss.laserActive === 0) {
+           boss.stopped = false;
+           boss.lasers = [];
+       }
+   } else {
+       boss.stopped = false;
+       boss.laserCooldown--;
+       if (boss.laserCooldown <= 0) {
+           beginBossLaserPattern();
+           boss.laserCooldown = phaseTwo ? 210 : 350;
+       }
    }
+
+   if (!boss.stopped) {
+       boss.shotCooldown--;
+       if (boss.shotCooldown <= 0) {
+           const muzzleOffset = phaseTwo ? 42 : 62;
+           for (let i = 0; i < 2; i++) {
+               const muzzle = DESTRIER_PROJECT.muzzles[i];
+               const start = bossLocalPoint(muzzle.x, muzzle.y);
+               const angle = Math.atan2(player.y - start.y, player.x - start.x);
+               enemyBullets.push(new Bullet(start.x, start.y, angle, '#ff0055', true, false));
+           }
+           boss.shotCooldown = muzzleOffset;
+       }
+   }
+
    for (let i = bullets.length - 1; i >= 0; i--) {
-       const b = bullets[i];
-       b.update();
-       if (b.life <= 0 || b.y < -20 || b.x < 0 || b.x > width) {
+       const bullet = bullets[i];
+       bullet.update();
+       if (bullet.life <= 0 || bullet.y < -20 || bullet.x < 0 || bullet.x > width) {
            bullets.splice(i, 1);
            continue;
        }
-       let bulletRemoved = false;
-       for (let ebIdx = enemyBullets.length - 1; ebIdx >= 0; ebIdx--) {
-           const eb = enemyBullets[ebIdx];
-           const distEB = Math.hypot(b.x - eb.x, b.y - eb.y);
-           if (distEB < b.radius + eb.radius + 4) {
-               sound.playBulletIntercept();
-               createParticles((b.x + eb.x) / 2, (b.y + eb.y) / 2, '#ffffff', 8);
-               createParticles(eb.x, eb.y, '#ff0055', 6);
-               enemyBullets.splice(ebIdx, 1);
-               if (b.pierce <= 0) {
-                   bullets.splice(i, 1);
-                   bulletRemoved = true;
-               } else {
-                   b.pierce--;
-               }
-               break;
-           }
-       }
-       if (bulletRemoved) continue;
-       for (let pIdx = powerups.length - 1; pIdx >= 0; pIdx--) {
-           const p = powerups[pIdx];
-           const distP = Math.hypot(b.x - p.x, b.y - p.y);
-           if (distP < b.radius + p.radius) {
-               sound.playPowerup();
-               createParticles(p.x, p.y, p.color, 20);
-               if (p.type === 'triple') {
-                   player.tripleShotTimer = 480;
-               } else if (p.type === 'rapid') {
-                   player.rapidFireTimer = 420;
-               } else if (p.type === 'shield') {
-                   player.shieldTimer = 550;
-               } else if (p.type === 'nuke') {
-                   triggerNova();
-               }
-               powerups.splice(pIdx, 1);
+       let blocked = false;
+       for (let s = 0; s < boss.shields.length; s++) {
+           const shield = boss.shields[s];
+           if (Math.hypot(bullet.x - shield.x, bullet.y - shield.y) < bullet.radius + shield.radius) {
+               createParticles(bullet.x, bullet.y, '#8ffcff', 4);
                bullets.splice(i, 1);
-               bulletRemoved = true;
+               blocked = true;
                break;
            }
        }
-       if (bulletRemoved) continue;
-       for (let j = invaders.length - 1; j >= 0; j--) {
-           const inv = invaders[j];
-           const dist = Math.hypot(b.x - inv.x, b.y - inv.y);
-           if (dist < b.radius + inv.radius) {
-               if (inv.type === 'tank' && inv.shieldActive) {
-                   bullets.splice(i, 1);
-                   createParticles(b.x, b.y, '#00f0ff', 6);
-                   sound.playBulletIntercept();
-                   break;
-               }
-               inv.hp -= b.damage;
-               createParticles(b.x, b.y, inv.color, 5);
-               if (b.pierce <= 0) {
-                   bullets.splice(i, 1);
-               } else {
-                   b.pierce--;
-               }
-               if (inv.hp <= 0) {
-                   sound.playExplosion(inv.type === 'tank');
-                   createParticles(inv.x, inv.y, inv.color, 22);
-                   addScore(inv.points);
-                   if (inv.type === 'splitter') {
-                       const drone1 = new Invader(inv.x - 16, inv.y, 'mini_drone', wave);
-                       const drone2 = new Invader(inv.x + 16, inv.y, 'mini_drone', wave);
-                       drone1.wobble = 0;
-                       drone2.wobble = Math.PI;
-                       invaders.push(drone1, drone2);
-                   }
-                   if (Math.random() < 0.18) {
-                       powerups.push(new PowerUp(inv.x, inv.y));
-                   }
-                   invaders.splice(j, 1);
-               }
-               break;
+       if (blocked) continue;
+
+       const scale = Math.max(0.42, Math.min(0.52, (width - 80) / 512));
+       const localX = (bullet.x - boss.x) / scale + DESTRIER_PROJECT.pivot.x;
+       const localY = (bullet.y - boss.y) / scale + DESTRIER_PROJECT.pivot.y;
+
+       if (pointInPolygon(localX, localY, DESTRIER_PROJECT.hitbox)) {
+           const center = bossLocalPoint(256, 256);
+           const weakPointOpen = boss.laserActive > 0 && Math.hypot(bullet.x - center.x, bullet.y - center.y) < 40;
+           const damage = weakPointOpen ? bullet.damage * 2 : bullet.damage;
+           boss.hp = Math.max(0, boss.hp - damage);
+           createParticles(bullet.x, bullet.y, weakPointOpen ? '#00ff66' : '#ff007f', 6);
+           bullets.splice(i, 1);
+           updateHearts();
+           updateHud();
+           if (boss.hp <= 0) {
+               startBossVictoryCutscene();
+               return;
            }
        }
    }
+
    for (let i = enemyBullets.length - 1; i >= 0; i--) {
-       const eb = enemyBullets[i];
-       eb.update();
-       if (eb.life <= 0 || eb.y > height + 20) {
+       const bullet = enemyBullets[i];
+       bullet.update();
+       if (bullet.life <= 0 || bullet.y > height + 30 || bullet.x < -30 || bullet.x > width + 30) {
            enemyBullets.splice(i, 1);
            continue;
        }
-       const distPlayer = Math.hypot(eb.x - player.x, eb.y - player.y);
-       if (distPlayer < eb.radius + player.radius) {
-           if (eb.isEmp) {
-               player.empTimer = 180;
-               createParticles(player.x, player.y, '#ff00aa', 15);
-               updateHud();
-           }
+       const dist = Math.hypot(bullet.x - player.x, bullet.y - player.y);
+       if (dist < bullet.radius + player.radius) {
            enemyBullets.splice(i, 1);
            player.takeDamage();
+           if (state === GameState.GAMEOVER) return;
        }
    }
-   for (let i = invaders.length - 1; i >= 0; i--) {
-       const inv = invaders[i];
-       inv.update();
-       // Sortie de l'écran par le bas : uniquement si l'ennemi a dépassé le bas réel de l'écran
-       if (height > 100 && inv.y > height + inv.radius + 10 && inv.y > 0) {
-           sound.playBreach();
-           triggerBreachWarning();
-           triggerShake(10);
-           if (player) {
-               player.takeDamage();
-           }
-           invaders.splice(i, 1);
-           continue;
-       }
-       const distPlayer = Math.hypot(inv.x - player.x, inv.y - player.y);
-       if (distPlayer < inv.radius + player.radius) {
-           player.takeDamage();
-           createParticles(inv.x, inv.y, inv.color, 20);
-           invaders.splice(i, 1);
-           continue;
-       }
-   }
-   for (let i = powerups.length - 1; i >= 0; i--) {
-       const p = powerups[i];
-       p.update();
-       if (p.life <= 0 || p.y > height + 30) {
-           powerups.splice(i, 1);
-       }
-   }
+
    for (let i = particles.length - 1; i >= 0; i--) {
        const pt = particles[i];
        pt.update();
        if (pt.life <= 0) particles.splice(i, 1);
    }
-   for (let i = shockwaves.length - 1; i >= 0; i--) {
-       const sw = shockwaves[i];
-       sw.update();
-       if (sw.finished) shockwaves.splice(i, 1);
+}
+function startBossVictoryCutscene() {
+   bossActive = false;
+   boss = null;
+   state = GameState.BOSS_CUTSCENE;
+   victoryCutsceneTimer = 0;
+   player.novaCharge = 100;
+   sound.playNova();
+   triggerShake(20);
+   shockwaves.push(new Shockwave(player.x, player.y, Math.max(width, height)));
+   const banner = document.getElementById('wave-banner');
+   if (banner) {
+       banner.textContent = 'NOVA — VICTOIRE';
+       banner.classList.add('active');
    }
 }
+function showVictoryScreen() {
+   state = GameState.BOSS_REWARDS;
+   const el = document.getElementById('victory-screen');
+   const timeEl = document.getElementById('victory-time');
+   if (el) el.classList.remove('hidden');
+   if (timeEl) timeEl.textContent = formatTime(totalPlaySeconds);
+}
+function formatTime(seconds) {
+   const mins = Math.floor(seconds / 60);
+   const secs = Math.floor(seconds % 60);
+   return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+}
+function applyBossReward(upgrade) {
+   if (!player) return;
+   player.upgrades[upgrade.id] = (player.upgrades[upgrade.id] || 0) + 1;
+   upgrade.apply(player, player.upgrades[upgrade.id]);
+   sound.playPowerup();
+   bossRewardStage++;
+   if (bossRewardStage < 2) {
+      openBossRewards();
+   } else {
+      openStyleReward();
+   }
+}
+function openBossRewards() {
+   const screen = document.getElementById('levelup-screen');
+   const container = document.getElementById('upgrades-container');
+   const subtitle = document.getElementById('levelup-subtitle');
+   if (!screen || !container || !subtitle) return;
+
+   container.innerHTML = '';
+   subtitle.textContent = bossRewardStage === 0
+       ? 'RÉCOMPENSE BOSS — CHOISISSEZ VOTRE 1ER AMÉLIORATION'
+       : 'RÉCOMPENSE BOSS — CHOISISSEZ VOTRE 2E AMÉLIORATION';
+
+   RANDOM_UPGRADE_POOL.forEach(upg => {
+       const currentLvl = (player && player.upgrades[upg.id]) || 0;
+       const nextLvl = currentLvl + 1;
+       const card = document.createElement('div');
+       card.className = 'upgrade-card';
+       card.innerHTML = `
+          <div class="upgrade-icon">${upg.icon}</div>
+          <div class="upgrade-info">
+              <div class="upgrade-title">
+                  <span>${upg.name}</span>
+                  <span class="upgrade-level-badge">Niv. ${nextLvl}</span>
+              </div>
+              <div class="upgrade-desc">${upg.getDesc(nextLvl)}</div>
+          </div>`;
+       card.onclick = () => {
+           applyBossReward(upg);
+       };
+       container.appendChild(card);
+   });
+
+   screen.classList.remove('hidden');
+}
+function openStyleReward() {
+   const screen = document.getElementById('levelup-screen');
+   const container = document.getElementById('upgrades-container');
+   const subtitle = document.getElementById('levelup-subtitle');
+   if (!screen || !container || !subtitle) return;
+
+   container.innerHTML = '';
+   subtitle.textContent = 'RÉCOMPENSE BOSS — CHOISISSEZ VOTRE STYLE GRATUIT';
+   const maxed = player.skinIndex >= SHIP_SKINS.length - 1;
+
+   const card = document.createElement('div');
+   card.className = 'upgrade-card style-card' + (maxed ? ' maxed' : '');
+   card.innerHTML = `
+      <div class="upgrade-icon" style="background: rgba(255, 234, 0, 0.15); border-color: #ffea00;">${STYLE_UPGRADE.icon}</div>
+      <div class="upgrade-info">
+          <div class="upgrade-title">
+             <span>${STYLE_UPGRADE.name}</span>
+             <span class="upgrade-level-badge">${maxed ? 'MAX' : `Châssis ${player.skinIndex + 2}/10`}</span>
+          </div>
+          <div class="upgrade-desc">${STYLE_UPGRADE.getDesc(player.skinIndex)}</div>
+      </div>`;
+   card.onclick = () => {
+       if (!maxed) STYLE_UPGRADE.apply(player);
+       const lvlScreen = document.getElementById('levelup-screen');
+       if (lvlScreen) lvlScreen.classList.add('hidden');
+       bossRewardStage = 0;
+       // reset player health back to hearts, set to 3 if needed, keep max if above 3
+       if (player) {
+           player.maxHealth = Math.max(3, player.maxHealth);
+           if (player.health < 3) player.health = 3;
+           updateHearts();
+       }
+       const banner = document.getElementById('wave-banner');
+       if (banner) {
+           banner.textContent = 'COMBAT TERMINÉ';
+           banner.classList.add('active');
+       }
+       state = GameState.PLAYING;
+       startWave(21);
+   };
+   container.appendChild(card);
+   screen.classList.remove('hidden');
+}
+function continueFromVictory() {
+   const victoryScreen = document.getElementById('victory-screen');
+   if (victoryScreen) victoryScreen.classList.add('hidden');
+   bossRewardStage = 0;
+   openBossRewards();
+}
+document.addEventListener('click', (event) => {
+   if (event.target && event.target.id === 'victory-continue-btn') {
+       continueFromVictory();
+   }
+});
+
+function update() {
+   if (state === GameState.GAMEOVER) return;
+   if (state === GameState.BOSS_FIGHT) {
+       updateBossFight();
+       return;
+   }
+   if (state === GameState.BOSS_CUTSCENE) {
+       for (let i = shockwaves.length - 1; i >= 0; i--) {
+           const sw = shockwaves[i];
+           sw.update();
+           if (sw.finished) shockwaves.splice(i, 1);
+       }
+       victoryCutsceneTimer++;
+       if (victoryCutsceneTimer >= 180) {
+           showVictoryScreen();
+       }
+       return;
+   }
+   if (state === GameState.BOSS_REWARDS) return;
+   if (state === GameState.PLAYING) {
+       totalPlaySeconds += 1 / 60;
+       if (comboTimer > 0) comboTimer--;
+       else if (combo > 1.0) {
+           combo = +(combo - 0.05).toFixed(1);
+           comboTimer = 30;
+           updateHud();
+       }
+       player.update();
+       if (hudNovaFill) hudNovaFill.style.width = `${player.novaCharge}%`;
+       if (touchNovaBtn) {
+           if (player.novaCharge >= 98) {
+               touchNovaBtn.classList.add('ready');
+           } else {
+               touchNovaBtn.classList.remove('ready');
+           }
+       }
+       if (!waveSpawning && invaders.length === 0) {
+           if (wave % 5 === 0) {
+               presentLevelUpChoices();
+           } else {
+               startWave(wave + 1);
+           }
+           return;
+       }
+       for (let i = bullets.length - 1; i >= 0; i--) {
+           const b = bullets[i];
+           b.update();
+           if (b.life <= 0 || b.y < -20 || b.x < 0 || b.x > width) {
+               bullets.splice(i, 1);
+               continue;
+           }
+           let bulletRemoved = false;
+           for (let ebIdx = enemyBullets.length - 1; ebIdx >= 0; ebIdx--) {
+               const eb = enemyBullets[ebIdx];
+               const distEB = Math.hypot(b.x - eb.x, b.y - eb.y);
+               if (distEB < b.radius + eb.radius + 4) {
+                   sound.playBulletIntercept();
+                   createParticles((b.x + eb.x) / 2, (b.y + eb.y) / 2, '#ffffff', 8);
+                   createParticles(eb.x, eb.y, '#ff0055', 6);
+                   enemyBullets.splice(ebIdx, 1);
+                   if (b.pierce <= 0) {
+                       bullets.splice(i, 1);
+                       bulletRemoved = true;
+                   } else {
+                       b.pierce--;
+                   }
+                   break;
+               }
+           }
+           if (bulletRemoved) continue;
+           for (let pIdx = powerups.length - 1; pIdx >= 0; pIdx--) {
+               const p = powerups[pIdx];
+               const distP = Math.hypot(b.x - p.x, b.y - p.y);
+               if (distP < b.radius + p.radius) {
+                   sound.playPowerup();
+                   createParticles(p.x, p.y, p.color, 20);
+                   if (p.type === 'triple') {
+                       player.tripleShotTimer = 480;
+                   } else if (p.type === 'rapid') {
+                       player.rapidFireTimer = 420;
+                   } else if (p.type === 'shield') {
+                       player.shieldTimer = 550;
+                   } else if (p.type === 'nuke') {
+                       triggerNova();
+                   }
+                   powerups.splice(pIdx, 1);
+                   bullets.splice(i, 1);
+                   bulletRemoved = true;
+                   break;
+               }
+           }
+           if (bulletRemoved) continue;
+
+           for (let j = invaders.length - 1; j >= 0; j--) {
+               const inv = invaders[j];
+               const dist = Math.hypot(b.x - inv.x, b.y - inv.y);
+               if (dist < b.radius + inv.radius) {
+                   if (inv.type === 'tank' && inv.shieldActive) {
+                       bullets.splice(i, 1);
+                       createParticles(b.x, b.y, '#00f0ff', 6);
+                       sound.playBulletIntercept();
+                       break;
+                   }
+                   inv.hp -= b.damage;
+                   createParticles(b.x, b.y, inv.color, 5);
+                   if (b.pierce <= 0) {
+                       bullets.splice(i, 1);
+                   } else {
+                       b.pierce--;
+                   }
+                   if (inv.hp <= 0) {
+                       sound.playExplosion(inv.type === 'tank');
+                       createParticles(inv.x, inv.y, inv.color, 22);
+                       addScore(inv.points);
+                       if (inv.type === 'splitter') {
+                           const drone1 = new Invader(inv.x - 16, inv.y, 'mini_drone', wave);
+                           const drone2 = new Invader(inv.x + 16, inv.y, 'mini_drone', wave);
+                           drone1.wobble = 0;
+                           drone2.wobble = Math.PI;
+                           invaders.push(drone1, drone2);
+                       }
+                       if (Math.random() < 0.18) {
+                           powerups.push(new PowerUp(inv.x, inv.y));
+                       }
+                       invaders.splice(j, 1);
+                   }
+                   break;
+               }
+           }
+       }
+
+       for (let i = enemyBullets.length - 1; i >= 0; i--) {
+           const eb = enemyBullets[i];
+           eb.update();
+           if (eb.life <= 0 || eb.y > height + 20) {
+               enemyBullets.splice(i, 1);
+               continue;
+           }
+           const distPlayer = Math.hypot(eb.x - player.x, eb.y - player.y);
+           if (distPlayer < eb.radius + player.radius) {
+               if (eb.isEmp) {
+                   player.empTimer = 180;
+                   createParticles(player.x, player.y, '#ff00aa', 15);
+                   updateHud();
+               }
+               enemyBullets.splice(i, 1);
+               player.takeDamage();
+           }
+       }
+       for (let i = invaders.length - 1; i >= 0; i--) {
+           const inv = invaders[i];
+           inv.update();
+           if (height > 100 && inv.y > height + inv.radius + 10 && inv.y > 0) {
+               sound.playBreach();
+               triggerBreachWarning();
+               triggerShake(10);
+               if (player) {
+                   player.takeDamage();
+               }
+               invaders.splice(i, 1);
+               continue;
+           }
+           const distPlayer = Math.hypot(inv.x - player.x, inv.y - player.y);
+           if (distPlayer < inv.radius + player.radius) {
+               player.takeDamage();
+               createParticles(inv.x, inv.y, inv.color, 20);
+               invaders.splice(i, 1);
+               continue;
+           }
+       }
+       for (let i = powerups.length - 1; i >= 0; i--) {
+           const p = powerups[i];
+           p.update();
+           if (p.life <= 0 || p.y > height + 30) {
+               powerups.splice(i, 1);
+           }
+       }
+       for (let i = particles.length - 1; i >= 0; i--) {
+           const pt = particles[i];
+           pt.update();
+           if (pt.life <= 0) particles.splice(i, 1);
+       }
+       for (let i = shockwaves.length - 1; i >= 0; i--) {
+           const sw = shockwaves[i];
+           sw.update();
+           if (sw.finished) shockwaves.splice(i, 1);
+       }
+   }
+}
+
 function draw() {
    ctx.save();
    ctx.scale(dpr, dpr);
@@ -1543,6 +2126,7 @@ function draw() {
        ctx.stroke();
    }
    ctx.restore();
+
    ctx.save();
    ctx.strokeStyle = 'rgba(255, 0, 85, 0.25)';
    ctx.setLineDash([8, 8]);
@@ -1552,17 +2136,20 @@ function draw() {
    ctx.lineTo(width, height - 16);
    ctx.stroke();
    ctx.restore();
+
    for (let sw of shockwaves) sw.draw();
    for (let pt of particles) pt.draw();
    for (let p of powerups) p.draw();
    for (let b of bullets) b.draw();
    for (let eb of enemyBullets) eb.draw();
    for (let inv of invaders) inv.draw();
-   if (player && (state === GameState.PLAYING || state === GameState.UPGRADING || state === GameState.PAUSED)) {
+   if (bossActive) drawBoss();
+   if (player && (state === GameState.PLAYING || state === GameState.UPGRADING || state === GameState.PAUSED || state === GameState.BOSS_FIGHT || state === GameState.BOSS_CUTSCENE)) {
        player.draw();
    }
    ctx.restore();
 }
+
 function gameLoop() {
    update();
    draw();
@@ -1587,641 +2174,3 @@ window.onload = function() {
    resize();
    gameLoop();
 };
-/* ==============================================================
-   WAVE 20 BOSS: LE NOBLE DESTRIER
-   Append after the existing game code.
-   ============================================================== */
-(() => {
-    const DESTRIER_NAME = 'Le noble Destrier';
-    const DESTRIER_MAX_HP = 420;
-    const DESTRIER_PIVOT = { x: 256, y: 256 };
-
-    // Geometry and muzzle positions are from project.json.
-    const DESTRIER_SHAPES = [
-        { type: 'circle', cx: 256, cy: 256, r: 121, color: '#ff007f' },
-        { type: 'poly', pts: [[160,192],[160,320],[0,320],[0,192]], color: '#ff007f' },
-        { type: 'poly', pts: [[352,192],[352,320],[512,320],[512,192]], color: '#ff007f' },
-        { type: 'poly', pts: [[320,336],[352,336],[352,384],[320,384]], color: '#ff2a2a' },
-        { type: 'poly', pts: [[192,336],[160,336],[160,384],[192,384]], color: '#ff2a2a' },
-        { type: 'poly', pts: [[32,320],[64,320],[64,352],[32,352]], color: '#ff2a2a' },
-        { type: 'poly', pts: [[480,320],[448,320],[448,352],[480,352]], color: '#ff2a2a' },
-        { type: 'circle', cx: 256, cy: 256, r: 24, color: '#00ff66' }
-    ];
-    const DESTRIER_HITBOX = [
-        [0,320],[32,320],[32,352],[64,352],[64,320],[160,320],
-        [160,384],[192,384],[192,368],[208,368],[224,368],[224,384],
-        [272,384],[272,368],[320,368],[320,384],[352,384],[352,320],
-        [448,320],[448,352],[480,352],[480,320],[512,320],[512,192],
-        [352,192],[352,128],[160,128],[160,192],[0,192]
-    ];
-    const DESTRIER_MUZZLES = [
-        { id: 1, x: 48, y: 352 },
-        { id: 2, x: 464, y: 352 },
-        { id: 3, x: 176, y: 384 },
-        { id: 4, x: 336, y: 384 }
-    ];
-
-    const originalStartWave = startWave;
-    const originalUpdate = update;
-    const originalDraw = draw;
-    const originalTriggerNova = triggerNova;
-    const originalUpdateHearts = updateHearts;
-    const originalEndGame = endGame;
-    const originalCloseUpgradeScreen = closeUpgradeScreen;
-    const originalSelectRandomUpgrade = selectRandomUpgrade;
-    const originalTogglePause = togglePause;
-
-    GameState.BOSS_CUTSCENE = 5;
-    GameState.BOSS_REWARDS = 6;
-
-    let destrier = null;
-    let bossTimerFrames = 0;
-    let totalPlayFrames = 0;
-    let bossRewardStep = 0;
-    let victoryCutsceneFrames = 0;
-
-    function fmtTime(frames) {
-        const seconds = Math.floor(frames / 60);
-        const minutes = Math.floor(seconds / 60);
-        return `${String(minutes).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
-    }
-
-    function bossScale() {
-        return Math.max(0.38, Math.min(0.55, (width - 48) / 512));
-    }
-
-    function bossPoint(localX, localY) {
-        const scale = bossScale();
-        return {
-            x: destrier.x + (localX - DESTRIER_PIVOT.x) * scale,
-            y: destrier.y + (localY - DESTRIER_PIVOT.y) * scale
-        };
-    }
-
-    function pointInPolygon(x, y, points) {
-        let inside = false;
-        for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
-            const xi = points[i][0], yi = points[i][1];
-            const xj = points[j][0], yj = points[j][1];
-            const crosses = ((yi > y) !== (yj > y)) &&
-                (x < ((xj - xi) * (y - yi)) / ((yj - yi) || 1e-9) + xi);
-            if (crosses) inside = !inside;
-        }
-        return inside;
-    }
-
-    function pointNearSegment(px, py, ax, ay, bx, by, radius) {
-        const dx = bx - ax;
-        const dy = by - ay;
-        const lengthSq = dx * dx + dy * dy || 1;
-        const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / lengthSq));
-        return Math.hypot(px - (ax + t * dx), py - (ay + t * dy)) <= radius;
-    }
-
-    function updateBossHud() {
-        if (!destrier) return;
-        const fill = document.getElementById('boss-health-fill');
-        const text = document.getElementById('boss-health-text');
-        const ratio = Math.max(0, destrier.hp / destrier.maxHp);
-        if (fill) fill.style.width = `${ratio * 100}%`;
-        if (text) text.textContent = `${DESTRIER_NAME} — ${Math.ceil(destrier.hp)} / ${destrier.maxHp}`;
-        if (hudWave) hudWave.textContent = DESTRIER_NAME;
-        if (hudNovaFill) hudNovaFill.style.width = `${(1 - ratio) * 100}%`;
-        if (touchNovaBtn) {
-            touchNovaBtn.classList.remove('ready');
-            touchNovaBtn.classList.add('boss-disabled');
-        }
-    }
-
-    function setBossHealthMode(enabled) {
-        const hud = document.getElementById('hud');
-        const label = hud && hud.querySelector('.hud-panel[style*="text-align: right"] .stat-label');
-        const hearts = document.getElementById('hud-hearts');
-        const bossHud = document.getElementById('boss-health');
-        const novaLabel = document.getElementById('hud-nova-label');
-
-        if (hud) hud.classList.toggle('boss-health-mode', enabled);
-        if (label) label.textContent = enabled ? 'Bouclier' : 'Bouclier Vaisseau';
-        if (hearts) hearts.classList.toggle('boss-health-hidden', enabled);
-        if (bossHud) bossHud.classList.toggle('hidden', !enabled);
-        if (novaLabel) novaLabel.textContent = enabled ? 'Progression Nova' : 'Nova';
-    }
-
-    function beginDestrierFight() {
-        invaders = [];
-        bullets = [];
-        enemyBullets = [];
-        powerups = [];
-        destrier = {
-            x: width / 2,
-            y: Math.max(148, height * 0.26),
-            hp: DESTRIER_MAX_HP,
-            maxHp: DESTRIER_MAX_HP,
-            direction: 1,
-            speed: 2.0,
-            shotCooldown: 50,
-            laserCooldown: 300,
-            warningFrames: 0,
-            laserFrames: 0,
-            lasers: [],
-            stopped: false,
-            shields: [
-                { x: width * 0.35, y: height * 0.62, phase: 0, radius: 19 },
-                { x: width * 0.65, y: height * 0.62, phase: Math.PI, radius: 19 }
-            ]
-        };
-        bossTimerFrames = 0;
-        setBossHealthMode(true);
-        if (player) player.novaCharge = 0;
-        const banner = document.getElementById('wave-banner');
-        if (banner) {
-            banner.textContent = DESTRIER_NAME;
-            banner.classList.add('active');
-            setTimeout(() => banner.classList.remove('active'), 2200);
-        }
-        updateBossHud();
-        updateHearts();
-    }
-
-    startWave = function (waveNum) {
-        if (waveNum === 20) {
-            wave = 20;
-            waveSpawning = false;
-            beginDestrierFight();
-            updateHud();
-            return;
-        }
-        destrier = null;
-        setBossHealthMode(false);
-        originalStartWave(waveNum);
-    };
-
-    updateHearts = function () {
-        if (destrier) {
-            const hearts = document.getElementById('hud-hearts');
-            if (hearts) {
-                hearts.innerHTML = `
-                    <div class="player-health-track" aria-label="Santé du joueur">
-                        <div class="player-health-fill" style="width:${Math.max(0, player.health / player.maxHealth) * 100}%"></div>
-                    </div>
-                    <span class="player-health-count">${player.health} / ${player.maxHealth}</span>
-                `;
-            }
-            return;
-        }
-        originalUpdateHearts();
-    };
-
-    triggerNova = function () {
-        if (destrier) return;
-        originalTriggerNova();
-    };
-
-    togglePause = function () {
-        if (state === GameState.BOSS_CUTSCENE || state === GameState.BOSS_REWARDS) return;
-        originalTogglePause();
-    };
-
-    function beginBossLaserAttack() {
-        const phaseTwo = destrier.hp < destrier.maxHp * 0.5;
-        destrier.stopped = true;
-        destrier.warningFrames = 90;
-        destrier.laserFrames = 0;
-        destrier.lasers = [];
-
-        if (phaseTwo) {
-            // Phase 2 side-cannon lasers target varied points along the bottom edge.
-            for (const muzzle of DESTRIER_MUZZLES.slice(0, 2)) {
-                const start = bossPoint(muzzle.x, muzzle.y);
-                const targetX = 45 + Math.random() * Math.max(1, width - 90);
-                destrier.lasers.push({
-                    x1: start.x, y1: start.y,
-                    x2: targetX, y2: height,
-                    width: 30,
-                    color: '#ff2a2a'
-                });
-            }
-        } else {
-            // Center cannon beams leave a broad, dodgeable gap.
-            for (const muzzle of DESTRIER_MUZZLES.slice(2, 4)) {
-                const start = bossPoint(muzzle.x, muzzle.y);
-                destrier.lasers.push({
-                    x1: start.x, y1: start.y,
-                    x2: start.x, y2: height,
-                    width: 34,
-                    color: '#ff2a2a'
-                });
-            }
-        }
-        sound.playAbility();
-    }
-
-    function updateBoss() {
-        if (!destrier || !player) return;
-        bossTimerFrames++;
-        bossTimerFrames = Math.max(0, bossTimerFrames);
-
-        player.update();
-        // Nova is a boss-progress meter, never a manually activated ability.
-        player.novaCharge = (1 - destrier.hp / destrier.maxHp) * 100;
-
-        const phaseTwo = destrier.hp < destrier.maxHp * 0.5;
-        const bounds = 256 * bossScale() + 8;
-        if (!destrier.stopped) {
-            destrier.x += destrier.direction * destrier.speed * (phaseTwo ? 1.18 : 1);
-            if (destrier.x < bounds || destrier.x > width - bounds) {
-                destrier.direction *= -1;
-                destrier.x = Math.max(bounds, Math.min(width - bounds, destrier.x));
-            }
-        }
-
-        // Two indestructible screen-width shield ships continuously patrol between
-        // the boss and the player. They only intercept player shots.
-        for (const shield of destrier.shields) {
-            shield.phase += phaseTwo ? 0.035 : 0.027;
-            shield.x = width * 0.5 + Math.sin(shield.phase) * width * 0.34;
-            shield.y = Math.min(height - 125, Math.max(destrier.y + 115, height * 0.62));
-        }
-
-        if (destrier.warningFrames > 0) {
-            destrier.warningFrames--;
-            if (destrier.warningFrames === 0) {
-                destrier.laserFrames = 150; // 2.5 seconds at 60 fps
-            }
-        } else if (destrier.laserFrames > 0) {
-            destrier.laserFrames--;
-            // Contact damage is moderated by the player's normal invulnerability timer.
-            for (const laser of destrier.lasers) {
-                if (pointNearSegment(player.x, player.y, laser.x1, laser.y1, laser.x2, laser.y2,
-                    laser.width / 2 + player.radius * 0.45)) {
-                    player.takeDamage();
-                    if (state === GameState.GAMEOVER) return;
-                }
-            }
-            if (destrier.laserFrames === 0) {
-                destrier.stopped = false;
-                destrier.lasers = [];
-            }
-        } else {
-            destrier.stopped = false;
-            destrier.laserCooldown--;
-            if (destrier.laserCooldown <= 0) {
-                beginBossLaserAttack();
-                destrier.laserCooldown = phaseTwo ? 240 : 390;
-            }
-        }
-
-        if (!destrier.stopped) {
-            destrier.shotCooldown--;
-            if (destrier.shotCooldown <= 0) {
-                const interval = phaseTwo ? 42 : 62;
-                for (const muzzle of DESTRIER_MUZZLES.slice(0, 2)) {
-                    const origin = bossPoint(muzzle.x, muzzle.y);
-                    const angle = Math.atan2(player.y - origin.y, player.x - origin.x);
-                    enemyBullets.push(new Bullet(origin.x, origin.y, angle, '#ff0055', true, false));
-                }
-                destrier.shotCooldown = interval;
-            }
-        }
-
-        // Move player bullets, let shields intercept first, then test the project hitbox.
-        for (let i = bullets.length - 1; i >= 0; i--) {
-            const bullet = bullets[i];
-            bullet.update();
-            if (bullet.life <= 0 || bullet.y < -20 || bullet.x < 0 || bullet.x > width) {
-                bullets.splice(i, 1);
-                continue;
-            }
-
-            let blocked = false;
-            for (const shield of destrier.shields) {
-                if (Math.hypot(bullet.x - shield.x, bullet.y - shield.y) < bullet.radius + shield.radius) {
-                    createParticles(bullet.x, bullet.y, '#8ffcff', 3);
-                    bullets.splice(i, 1);
-                    blocked = true;
-                    break;
-                }
-            }
-            if (blocked) continue;
-
-            const scale = bossScale();
-            const localX = (bullet.x - destrier.x) / scale + DESTRIER_PIVOT.x;
-            const localY = (bullet.y - destrier.y) / scale + DESTRIER_PIVOT.y;
-            if (pointInPolygon(localX, localY, DESTRIER_HITBOX)) {
-                const center = bossPoint(256, 256);
-                const weakPointOpen = destrier.laserFrames > 0 &&
-                    Math.hypot(bullet.x - center.x, bullet.y - center.y) < 38 * scale;
-                destrier.hp = Math.max(0, destrier.hp - bullet.damage * (weakPointOpen ? 2 : 1));
-                createParticles(bullet.x, bullet.y, weakPointOpen ? '#00ff66' : '#ff007f', 4);
-                bullets.splice(i, 1);
-                updateBossHud();
-                if (destrier.hp <= 0) {
-                    startDestrierVictory();
-                    return;
-                }
-            }
-        }
-
-        for (let i = enemyBullets.length - 1; i >= 0; i--) {
-            const bullet = enemyBullets[i];
-            bullet.update();
-            if (bullet.life <= 0 || bullet.y > height + 24 ||
-                bullet.x < -24 || bullet.x > width + 24) {
-                enemyBullets.splice(i, 1);
-                continue;
-            }
-            if (Math.hypot(bullet.x - player.x, bullet.y - player.y) <
-                bullet.radius + player.radius * 0.65) {
-                enemyBullets.splice(i, 1);
-                player.takeDamage();
-                if (state === GameState.GAMEOVER) return;
-            }
-        }
-
-        for (let i = particles.length - 1; i >= 0; i--) {
-            particles[i].update();
-            if (particles[i].life <= 0) particles.splice(i, 1);
-        }
-        updateBossHud();
-    }
-
-    function startDestrierVictory() {
-        if (!destrier || state !== GameState.PLAYING) return;
-        state = GameState.BOSS_CUTSCENE;
-        victoryCutsceneFrames = 0;
-        player.novaCharge = 100;
-        sound.playNova();
-        triggerShake(20);
-        shockwaves.push(new Shockwave(player.x, player.y, Math.max(width, height)));
-        enemyBullets = [];
-        bullets = [];
-        destrier.lasers = [];
-        const banner = document.getElementById('wave-banner');
-        if (banner) {
-            banner.textContent = 'NOVA — VICTOIRE';
-            banner.classList.add('active');
-        }
-    }
-
-    function showDestrierVictory() {
-        state = GameState.BOSS_REWARDS;
-        const screen = document.getElementById('victory-screen');
-        const time = document.getElementById('victory-time');
-        if (time) time.textContent = fmtTime(totalPlayFrames);
-        if (screen) screen.classList.remove('hidden');
-    }
-
-    function finishDestrierRewards() {
-        const screen = document.getElementById('levelup-screen');
-        if (screen) screen.classList.add('hidden');
-        const victory = document.getElementById('victory-screen');
-        if (victory) victory.classList.add('hidden');
-
-        // Preserve increased maximum health and hearts; ensure at least 3 current HP.
-        if (player) {
-            player.health = Math.max(3, player.health);
-            player.maxHealth = Math.max(3, player.maxHealth);
-            player.novaCharge = 0;
-        }
-        destrier = null;
-        setBossHealthMode(false);
-        updateHearts();
-        updateHud();
-        state = GameState.PLAYING;
-        startWave(21);
-    }
-
-    function showDestrierRewardChoice() {
-        state = GameState.BOSS_REWARDS;
-        const screen = document.getElementById('levelup-screen');
-        const container = document.getElementById('upgrades-container');
-        const subtitle = document.getElementById('levelup-subtitle');
-        if (!screen || !container) return;
-
-        container.innerHTML = '';
-        const styleChoice = bossRewardStep >= 2;
-        if (subtitle) {
-            subtitle.textContent = styleChoice
-                ? 'RÉCOMPENSE BONUS — CHOISISSEZ VOTRE STYLE'
-                : `RÉCOMPENSE ${bossRewardStep + 1}/2 — CHOISISSEZ UNE AMÉLIORATION`;
-        }
-
-        if (styleChoice) {
-            const card = document.createElement('div');
-            const maxed = player.skinIndex >= SHIP_SKINS.length - 1;
-            card.className = `upgrade-card style-card${maxed ? ' maxed' : ''}`;
-            card.innerHTML = `
-                <div class="upgrade-icon">${STYLE_UPGRADE.icon}</div>
-                <div class="upgrade-info">
-                    <div class="upgrade-title"><span>${STYLE_UPGRADE.name}</span>
-                    <span class="upgrade-level-badge">${maxed ? 'MAX' : `Châssis ${player.skinIndex + 2}/10`}</span></div>
-                    <div class="upgrade-desc">${STYLE_UPGRADE.getDesc(player.skinIndex)}</div>
-                </div>`;
-            card.addEventListener('click', () => {
-                if (!maxed) STYLE_UPGRADE.apply(player);
-                finishDestrierRewards();
-            });
-            container.appendChild(card);
-        } else {
-            RANDOM_UPGRADE_POOL.forEach((upgrade) => {
-                const level = (player.upgrades[upgrade.id] || 0) + 1;
-                const card = document.createElement('div');
-                card.className = 'upgrade-card';
-                card.innerHTML = `
-                    <div class="upgrade-icon">${upgrade.icon}</div>
-                    <div class="upgrade-info">
-                        <div class="upgrade-title"><span>${upgrade.name}</span>
-                        <span class="upgrade-level-badge">Niv. ${level}</span></div>
-                        <div class="upgrade-desc">${upgrade.getDesc(level)}</div>
-                    </div>`;
-                card.addEventListener('click', () => {
-                    player.upgrades[upgrade.id] = level;
-                    upgrade.apply(player, level);
-                    sound.playPowerup();
-                    bossRewardStep++;
-                    showDestrierRewardChoice();
-                });
-                container.appendChild(card);
-            });
-        }
-        screen.classList.remove('hidden');
-    }
-
-    closeUpgradeScreen = function () {
-        if (destrier && state === GameState.BOSS_REWARDS) {
-            const screen = document.getElementById('levelup-screen');
-            if (screen) screen.classList.add('hidden');
-            return;
-        }
-        originalCloseUpgradeScreen();
-    };
-
-    selectRandomUpgrade = function (upgrade) {
-        if (destrier) return;
-        originalSelectRandomUpgrade(upgrade);
-    };
-
-    function drawDestrier() {
-        if (!destrier) return;
-        const scale = bossScale();
-
-        // Telegraphs are visible before their beams fire.
-        if (destrier.warningFrames > 0) {
-            ctx.save();
-            ctx.strokeStyle = 'rgba(255, 42, 42, 0.28)';
-            ctx.lineWidth = 3;
-            ctx.setLineDash([9, 12]);
-            for (const laser of destrier.lasers) {
-                ctx.beginPath();
-                ctx.moveTo(laser.x1, laser.y1);
-                ctx.lineTo(laser.x2, laser.y2);
-                ctx.stroke();
-            }
-            ctx.restore();
-        }
-
-        if (destrier.laserFrames > 0) {
-            for (const laser of destrier.lasers) {
-                ctx.save();
-                ctx.strokeStyle = laser.color;
-                ctx.shadowColor = laser.color;
-                ctx.shadowBlur = 18;
-                ctx.globalAlpha = 0.8;
-                ctx.lineWidth = laser.width;
-                ctx.beginPath();
-                ctx.moveTo(laser.x1, laser.y1);
-                ctx.lineTo(laser.x2, laser.y2);
-                ctx.stroke();
-                ctx.restore();
-            }
-        }
-
-        // Draw the two unbreakable shield ships.
-        for (const shield of destrier.shields) {
-            ctx.save();
-            ctx.translate(shield.x, shield.y);
-            ctx.fillStyle = 'rgba(5, 28, 48, 0.95)';
-            ctx.strokeStyle = '#8ffcff';
-            ctx.shadowColor = '#00f0ff';
-            ctx.shadowBlur = 16;
-            ctx.lineWidth = 2.5;
-            ctx.beginPath();
-            ctx.moveTo(-26, 0);
-            ctx.lineTo(-12, -12);
-            ctx.lineTo(12, -12);
-            ctx.lineTo(26, 0);
-            ctx.lineTo(12, 12);
-            ctx.lineTo(-12, 12);
-            ctx.closePath();
-            ctx.fill();
-            ctx.stroke();
-            ctx.restore();
-        }
-
-        ctx.save();
-        ctx.translate(destrier.x, destrier.y);
-        ctx.scale(scale, scale);
-        ctx.translate(-DESTRIER_PIVOT.x, -DESTRIER_PIVOT.y);
-        ctx.lineWidth = 2;
-        for (const shape of DESTRIER_SHAPES) {
-            ctx.beginPath();
-            ctx.strokeStyle = shape.color;
-            ctx.fillStyle = shape.type === 'circle' && shape.r === 24
-                ? 'rgba(0, 255, 102, 0.8)'
-                : 'rgba(30, 5, 25, 0.94)';
-            ctx.shadowColor = shape.color;
-            ctx.shadowBlur = shape.r === 24 ? 18 : 12;
-            if (shape.type === 'circle') {
-                ctx.arc(shape.cx, shape.cy, shape.r, 0, Math.PI * 2);
-            } else {
-                shape.pts.forEach(([x, y], i) => {
-                    if (i === 0) ctx.moveTo(x, y);
-                    else ctx.lineTo(x, y);
-                });
-                ctx.closePath();
-            }
-            ctx.fill();
-            ctx.stroke();
-        }
-        // Highlight the circular weak point only during active laser volleys.
-        if (destrier.laserFrames > 0) {
-            ctx.beginPath();
-            ctx.strokeStyle = '#ffffff';
-            ctx.lineWidth = 4;
-            ctx.shadowColor = '#00ff66';
-            ctx.shadowBlur = 22;
-            ctx.arc(256, 256, 34, 0, Math.PI * 2);
-            ctx.stroke();
-        }
-        ctx.restore();
-    }
-
-    update = function () {
-        if (state === GameState.PLAYING) totalPlayFrames++;
-        if (state === GameState.PLAYING && destrier) {
-            updateBoss();
-            return;
-        }
-        if (state === GameState.BOSS_CUTSCENE) {
-            victoryCutsceneFrames++;
-            for (let i = shockwaves.length - 1; i >= 0; i--) {
-                shockwaves[i].update();
-                if (shockwaves[i].finished) shockwaves.splice(i, 1);
-            }
-            if (victoryCutsceneFrames >= 180) showDestrierVictory();
-            return;
-        }
-        if (state === GameState.BOSS_REWARDS) return;
-        originalUpdate();
-    };
-
-    draw = function () {
-        originalDraw();
-        if (destrier && (state === GameState.PLAYING || state === GameState.PAUSED)) {
-            ctx.save();
-            ctx.scale(dpr, dpr);
-            drawDestrier();
-            ctx.restore();
-        } else if (state === GameState.BOSS_CUTSCENE) {
-            ctx.save();
-            ctx.scale(dpr, dpr);
-            drawDestrier();
-            ctx.restore();
-        }
-    };
-
-    endGame = function () {
-        if (destrier) {
-            destrier = null;
-            setBossHealthMode(false);
-        }
-        originalEndGame();
-    };
-
-    // Fresh run: reset the elapsed timer. Regular wave and upgrade pauses are
-    // naturally excluded because only PLAYING updates advance the frame counter.
-    const oldInitGame = initGame;
-    initGame = function () {
-        totalPlayFrames = 0;
-        bossRewardStep = 0;
-        destrier = null;
-        setBossHealthMode(false);
-        oldInitGame();
-    };
-
-    document.addEventListener('click', (event) => {
-        if (event.target && event.target.id === 'victory-continue-btn') {
-            const victory = document.getElementById('victory-screen');
-            if (victory) victory.classList.add('hidden');
-            bossRewardStep = 0;
-            showDestrierRewardChoice();
-        }
-    });
-
-    // Keep the existing HUD text correct after ordinary wave updates too.
-    const oldUpdateHud = updateHud;
-    updateHud = function () {
-        oldUpdateHud();
-        if (destrier) updateBossHud();
-    };
-})();
