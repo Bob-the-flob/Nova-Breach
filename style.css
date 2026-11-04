@@ -6,7 +6,7 @@
     -webkit-user-select: none;
     -webkit-touch-callout: none;
 }
-body, html {
+html, body {
     width: 100%;
     height: 100%;
     overflow: hidden;
@@ -31,6 +31,7 @@ canvas {
     height: 100%;
     touch-action: none;
 }
+
 /* HUD */
 #hud {
     position: absolute;
@@ -121,9 +122,9 @@ canvas {
     opacity: 0.3;
     transform: scale(0.75);
 }
+
 /* Nova Bar */
 .nova-gauge-wrap {
-    margin-top: 6px;
     width: 110px;
     height: 8px;
     background: rgba(255, 255, 255, 0.12);
@@ -138,7 +139,21 @@ canvas {
     box-shadow: 0 0 8px #ff0077;
     transition: width 0.12s linear;
 }
-/* Touch Nova Button */
+.player-health-bar {
+    width: 120px;
+    height: 10px;
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 999px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 0, 85, 0.8);
+    box-shadow: inset 0 0 10px rgba(255, 0, 85, 0.15);
+}
+.player-health-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #ff0055, #ff7faa);
+    box-shadow: 0 0 10px rgba(255, 0, 85, 0.7);
+    transition: width 0.12s linear;
+}
 #touch-nova-btn {
     position: absolute;
     bottom: 24px;
@@ -168,6 +183,11 @@ canvas {
     color: #ffffff;
     box-shadow: 0 0 25px #ff00bb, inset 0 0 12px #ff00bb;
     animation: pulse-glow 1s infinite alternate;
+}
+#touch-nova-btn.boss-disabled {
+    opacity: 0.35;
+    filter: grayscale(1);
+    pointer-events: none;
 }
 @keyframes pulse-glow {
     0% { transform: scale(1); filter: brightness(1); }
@@ -287,7 +307,6 @@ canvas {
     color: #ff00a0;
     font-weight: bold;
 }
-/* Level Up Card Grid */
 .upgrades-container {
     display: flex;
     flex-direction: column;
@@ -306,6 +325,7 @@ canvas {
     gap: 14px;
     transition: all 0.2s ease;
     text-align: left;
+    color: #ffffff;
 }
 .upgrade-card:hover {
     background: rgba(24, 38, 76, 0.95);
@@ -313,7 +333,6 @@ canvas {
     transform: translateY(-2px);
     box-shadow: 0 0 16px rgba(0, 240, 255, 0.5);
 }
-/* Style permanent spécial */
 .upgrade-card.style-card {
     background: linear-gradient(135deg, rgba(32, 20, 52, 0.9), rgba(18, 12, 38, 0.9));
     border: 1.5px solid #ffea00;
@@ -361,6 +380,7 @@ canvas {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 8px;
 }
 .upgrade-level-badge {
     font-size: 11px;
@@ -376,14 +396,13 @@ canvas {
     margin-top: 3px;
     line-height: 1.35;
 }
-/* Wave 20 boss HUD and rewards */
 .boss-health {
     position: absolute;
-    top: 100px;
+    top: 110px;
     left: 50%;
-    z-index: 11;
-    width: min(520px, 72vw);
     transform: translateX(-50%);
+    width: min(520px, 72vw);
+    z-index: 11;
     text-align: center;
     pointer-events: none;
 }
@@ -391,19 +410,19 @@ canvas {
     display: none;
 }
 .boss-health-text {
-    margin-bottom: 5px;
     color: #ff7ab9;
     font-size: 13px;
     font-weight: 900;
     letter-spacing: 1.5px;
     text-shadow: 0 0 12px #ff007f;
 }
-.boss-health-track,
-.player-health-track {
+.boss-health-track {
+    margin-top: 6px;
+    width: 100%;
     height: 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 0, 127, 0.85);
     overflow: hidden;
-    border: 1px solid rgba(255, 0, 127, 0.8);
-    border-radius: 8px;
     background: rgba(15, 5, 20, 0.9);
     box-shadow: 0 0 12px rgba(255, 0, 127, 0.3);
 }
@@ -412,36 +431,6 @@ canvas {
     height: 100%;
     background: linear-gradient(90deg, #ff0055, #ff70b8);
     box-shadow: 0 0 12px #ff007f;
-    transition: width 0.12s linear;
-}
-.player-health-track {
-    width: 110px;
-    height: 10px;
-    border-color: rgba(255, 0, 85, 0.8);
-}
-.player-health-fill {
-    height: 100%;
-    background: linear-gradient(90deg, #ff0055, #ff8aab);
-    box-shadow: 0 0 8px #ff0055;
-    transition: width 0.12s linear;
-}
-.player-health-count {
-    margin-left: 6px;
-    color: #ff9aaf;
-    font-size: 11px;
-    font-weight: 800;
-}
-.boss-health-hidden {
-    display: none !important;
-}
-#touch-nova-btn.boss-disabled {
-    opacity: 0.35;
-    filter: grayscale(1);
-    pointer-events: none;
-}
-#hud.boss-health-mode .hearts-container {
-    align-items: center;
-    justify-content: flex-end;
 }
 .victory-title {
     color: #ffea00;
@@ -464,8 +453,5 @@ canvas {
     .boss-health {
         top: 128px;
         width: 80vw;
-    }
-    .boss-health-text {
-        font-size: 11px;
     }
 }
