@@ -1791,7 +1791,7 @@ function updateBossFight() {
    for (let i = enemyBullets.length - 1; i >= 0; i--) {
        const bullet = enemyBullets[i];
        bullet.update();
-       if (bullet.life <= 0 || bullet.y > height + 30 || bullet.x < -30 || bullet.x > width + 30) {
+       if (bullet.y > height + 30 || bullet.x < -30 || bullet.x > width + 30) {
            enemyBullets.splice(i, 1);
            continue;
        }
@@ -2090,7 +2090,7 @@ function update() {
        for (let i = enemyBullets.length - 1; i >= 0; i--) {
            const eb = enemyBullets[i];
            eb.update();
-           if (eb.life <= 0 || eb.y > height + 20) {
+           if (eb.y > height + 20) {
                enemyBullets.splice(i, 1);
                continue;
            }
