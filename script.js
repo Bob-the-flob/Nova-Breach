@@ -1225,7 +1225,7 @@ function presentLevelUpChoices() {
    container.appendChild(styleCard);
 
    const shuffled = [...RANDOM_UPGRADE_POOL].sort(() => Math.random() - 0.5);
-   const choices = shuffled.slice(0, 3);
+   choices = shuffled.slice(0, 3);
    choices.forEach(upg => {
        const currentLvl = (player && player.upgrades[upg.id]) || 0;
        const nextLvl = currentLvl + 1;
@@ -1527,40 +1527,48 @@ function beginBossLaserPattern() {
    boss.laserWarning = 90;
    boss.laserActive = 0;
    boss.lasers = [];
+
+   // Center vertical lasers continue firing in Phase 1 and Phase 2
+   const left = bossLocalPoint(DESTRIER_PROJECT.muzzles[2].x, DESTRIER_PROJECT.muzzles[2].y);
+   const right = bossLocalPoint(DESTRIER_PROJECT.muzzles[3].x, DESTRIER_PROJECT.muzzles[3].y);
+   boss.lasers.push({
+       x1: left.x,
+       y1: left.y,
+       x2: left.x,
+       y2: height + 100,
+       width: 34,
+       color: '#ff2a2a',
+       isDiagonal: false
+   });
+   boss.lasers.push({
+       x1: right.x,
+       y1: right.y,
+       x2: right.x,
+       y2: height + 100,
+       width: 34,
+       color: '#ff2a2a',
+       isDiagonal: false
+   });
+
+   // Phase 2: Add diagonal lasers targeting player's Y-level with extended length
    if (phaseTwo) {
        for (let i = 0; i < 2; i++) {
            const muzzle = DESTRIER_PROJECT.muzzles[i];
            const start = bossLocalPoint(muzzle.x, muzzle.y);
            const targetX = 50 + Math.random() * (width - 100);
-           const targetY = height * (0.65 + Math.random() * 0.2);
+           const targetY = player.y;
+           const angle = Math.atan2(targetY - start.y, targetX - start.x);
+           const laserLength = 3000;
            boss.lasers.push({
                x1: start.x,
                y1: start.y,
-               x2: targetX,
-               y2: targetY,
+               x2: start.x + Math.cos(angle) * laserLength,
+               y2: start.y + Math.sin(angle) * laserLength,
                width: 30,
-               color: '#ff2a2a'
+               color: '#ff2a2a',
+               isDiagonal: true
            });
        }
-   } else {
-       const left = bossLocalPoint(DESTRIER_PROJECT.muzzles[2].x, DESTRIER_PROJECT.muzzles[2].y);
-       const right = bossLocalPoint(DESTRIER_PROJECT.muzzles[3].x, DESTRIER_PROJECT.muzzles[3].y);
-       boss.lasers.push({
-           x1: left.x,
-           y1: left.y,
-           x2: left.x,
-           y2: height,
-           width: 34,
-           color: '#ff2a2a'
-       });
-       boss.lasers.push({
-           x1: right.x,
-           y1: right.y,
-           x2: right.x,
-           y2: height,
-           width: 34,
-           color: '#ff2a2a'
-       });
    }
    sound.playAbility();
 }
@@ -1739,6 +1747,23 @@ function updateBossFight() {
                bullets.splice(i, 1);
                blocked = true;
                break;
+           }
+       }
+       if (blocked) continue;
+
+       // Diagonal lasers act as a shield against player attacks
+       if (boss.laserActive > 0) {
+           for (let l = 0; l < boss.lasers.length; l++) {
+               const laser = boss.lasers[l];
+               if (laser.isDiagonal) {
+                   const hit = pointNearSegment(bullet.x, bullet.y, laser.x1, laser.y1, laser.x2, laser.y2, (laser.width / 2) + bullet.radius);
+                   if (hit) {
+                       createParticles(bullet.x, bullet.y, '#ff2a2a', 6);
+                       bullets.splice(i, 1);
+                       blocked = true;
+                       break;
+                   }
+               }
            }
        }
        if (blocked) continue;
