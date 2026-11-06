@@ -173,7 +173,7 @@ export function addScore(pts) {
 }
 
 /* ==============================================================
-   UI & HUD
+   UI, HUD, AND SCREENS
    ============================================================== */
 const hudScore = document.getElementById('hud-score');
 const hudCombo = document.getElementById('hud-combo');
@@ -232,6 +232,208 @@ export function updateHearts() {
     }
 }
 
+/* --- Level Up & Rewards --- */
+export function presentLevelUpChoices() {
+    state.current = GameState.UPGRADING;
+    sound.playLevelUp();
+    const container = document.getElementById('upgrades-container');
+    if (!container) return;
+    container.innerHTML = '';
+    
+    const currentSkinIdx = state.player ? state.player.skinIndex : 0;
+    const isMaxed = currentSkinIdx >= SHIP_SKINS.length - 1;
+    
+    const styleCard = document.createElement('div');
+    styleCard.className = 'upgrade-card style-card' + (isMaxed ? ' maxed' : '');
+    styleCard.innerHTML = `
+       <div class="upgrade-icon" style="background: rgba(255, 234, 0, 0.15); border-color: #ffea00;">${STYLE_UPGRADE.icon}</div>
+       <div class="upgrade-info">
+          <div class="upgrade-title">
+             <span>${STYLE_UPGRADE.name}</span>
+             <span class="upgrade-level-badge">${isMaxed ? 'MAX' : `Châssis ${currentSkinIdx + 2}/10`}</span>
+          </div>
+          <div class="upgrade-desc" style="color: #f1f5f9;">${STYLE_UPGRADE.getDesc(currentSkinIdx)}</div>
+       </div>
+    `;
+    if (!isMaxed) {
+        styleCard.onclick = () => {
+            STYLE_UPGRADE.apply(state.player);
+            closeUpgradeScreen();
+        };
+    }
+    container.appendChild(styleCard);
+ 
+    const shuffled = [...RANDOM_UPGRADE_POOL].sort(() => Math.random() - 0.5);
+    const choices = shuffled.slice(0, 3);
+    choices.forEach(upg => {
+        const currentLvl = (state.player && state.player.upgrades[upg.id]) || 0;
+        const nextLvl = currentLvl + 1;
+        const card = document.createElement('div');
+        card.className = 'upgrade-card';
+        card.innerHTML = `
+           <div class="upgrade-icon">${upg.icon}</div>
+           <div class="upgrade-info">
+              <div class="upgrade-title">
+                 <span>${upg.name}</span>
+                 <span class="upgrade-level-badge">Niv. ${nextLvl}</span>
+              </div>
+              <div class="upgrade-desc">${upg.getDesc(nextLvl)}</div>
+           </div>
+        `;
+        card.onclick = () => {
+            selectRandomUpgrade(upg);
+        };
+        container.appendChild(card);
+    });
+ 
+    const subTitle = document.getElementById('levelup-subtitle');
+    if (subTitle) subTitle.textContent = `FIN DE LA VAGUE ${state.wave} — AMÉLIORATION DISPONIBLE`;
+    const lvlScreen = document.getElementById('levelup-screen');
+    if (lvlScreen) lvlScreen.classList.remove('hidden');
+}
+ 
+export function selectRandomUpgrade(upg) {
+    if (!state.player) return;
+    state.player.upgrades[upg.id] = (state.player.upgrades[upg.id] || 0) + 1;
+    upg.apply(state.player, state.player.upgrades[upg.id]);
+    sound.playPowerup();
+    closeUpgradeScreen();
+}
+ 
+export function closeUpgradeScreen() {
+    const lvlScreen = document.getElementById('levelup-screen');
+    if (lvlScreen) lvlScreen.classList.add('hidden');
+    if (state.current === GameState.BOSS_REWARDS) return;
+    if (state.wave === 15 && state.bossActive) return;
+    
+    startWave(state.wave + 1);
+    state.current = GameState.PLAYING;
+}
+
+/* --- Victory Logic --- */
+function formatTime(seconds) {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+}
+
+export function showVictoryScreen() {
+    state.current = GameState.BOSS_REWARDS;
+    const el = document.getElementById('victory-screen');
+    const timeEl = document.getElementById('victory-time');
+    if (el) el.classList.remove('hidden');
+    if (timeEl) timeEl.textContent = formatTime(state.totalPlaySeconds);
+}
+
+export function continueFromVictory() {
+    const victoryScreen = document.getElementById('victory-screen');
+    if (victoryScreen) victoryScreen.classList.add('hidden');
+    state.bossRewardStage = 0;
+    openBossRewards();
+}
+
+export function applyBossReward(upgrade) {
+    if (!state.player) return;
+    state.player.upgrades[upgrade.id] = (state.player.upgrades[upgrade.id] || 0) + 1;
+    upgrade.apply(state.player, state.player.upgrades[upgrade.id]);
+    sound.playPowerup();
+    state.bossRewardStage++;
+    
+    if (state.bossRewardStage < 2) {
+       openBossRewards();
+    } else {
+       openStyleReward();
+    }
+}
+
+export function openBossRewards() {
+    const screen = document.getElementById('levelup-screen');
+    const container = document.getElementById('upgrades-container');
+    const subtitle = document.getElementById('levelup-subtitle');
+    if (!screen || !container || !subtitle) return;
+ 
+    container.innerHTML = '';
+    subtitle.textContent = state.bossRewardStage === 0
+        ? 'RÉCOMPENSE BOSS — CHOISISSEZ VOTRE 1ER AMÉLIORATION'
+        : 'RÉCOMPENSE BOSS — CHOISISSEZ VOTRE 2E AMÉLIORATION';
+ 
+    RANDOM_UPGRADE_POOL.forEach(upg => {
+        const currentLvl = (state.player && state.player.upgrades[upg.id]) || 0;
+        const nextLvl = currentLvl + 1;
+        const card = document.createElement('div');
+        card.className = 'upgrade-card';
+        card.innerHTML = `
+           <div class="upgrade-icon">${upg.icon}</div>
+           <div class="upgrade-info">
+               <div class="upgrade-title">
+                   <span>${upg.name}</span>
+                   <span class="upgrade-level-badge">Niv. ${nextLvl}</span>
+               </div>
+               <div class="upgrade-desc">${upg.getDesc(nextLvl)}</div>
+           </div>`;
+        card.onclick = () => {
+            applyBossReward(upg);
+        };
+        container.appendChild(card);
+    });
+ 
+    screen.classList.remove('hidden');
+}
+
+export function openStyleReward() {
+    const screen = document.getElementById('levelup-screen');
+    const container = document.getElementById('upgrades-container');
+    const subtitle = document.getElementById('levelup-subtitle');
+    if (!screen || !container || !subtitle) return;
+ 
+    container.innerHTML = '';
+    subtitle.textContent = 'RÉCOMPENSE BOSS — CHOISISSEZ VOTRE STYLE GRATUIT';
+    const maxed = state.player.skinIndex >= SHIP_SKINS.length - 1;
+ 
+    const card = document.createElement('div');
+    card.className = 'upgrade-card style-card' + (maxed ? ' maxed' : '');
+    card.innerHTML = `
+       <div class="upgrade-icon" style="background: rgba(255, 234, 0, 0.15); border-color: #ffea00;">${STYLE_UPGRADE.icon}</div>
+       <div class="upgrade-info">
+           <div class="upgrade-title">
+              <span>${STYLE_UPGRADE.name}</span>
+              <span class="upgrade-level-badge">${maxed ? 'MAX' : `Châssis ${state.player.skinIndex + 2}/10`}</span>
+           </div>
+           <div class="upgrade-desc">${STYLE_UPGRADE.getDesc(state.player.skinIndex)}</div>
+       </div>`;
+    card.onclick = () => {
+        if (!maxed) STYLE_UPGRADE.apply(state.player);
+        const lvlScreen = document.getElementById('levelup-screen');
+        if (lvlScreen) lvlScreen.classList.add('hidden');
+        state.bossRewardStage = 0;
+        
+        if (state.player) {
+            state.player.maxHealth = Math.max(3, state.player.maxHealth);
+            if (state.player.health < 3) state.player.health = 3;
+            updateHearts();
+        }
+        
+        const banner = document.getElementById('wave-banner');
+        if (banner) {
+            banner.textContent = 'COMBAT TERMINÉ';
+            banner.classList.add('active');
+        }
+        state.current = GameState.PLAYING;
+        startWave(21);
+    };
+    container.appendChild(card);
+    screen.classList.remove('hidden');
+}
+
+document.addEventListener('click', (event) => {
+    if (event.target && event.target.id === 'victory-continue-btn') {
+        continueFromVictory();
+    }
+});
+
+/* ==============================================================
+   GAME FLOW
+   ============================================================== */
 export function endGame() {
     state.current = GameState.GAMEOVER;
     sound.playExplosion(true);
@@ -366,15 +568,7 @@ function update() {
             updateHud();
         }
         if (state.victoryCutsceneTimer >= 180) {
-            // showVictoryScreen() logic
-            state.current = GameState.BOSS_REWARDS;
-            document.getElementById('victory-screen')?.classList.remove('hidden');
-            const timeEl = document.getElementById('victory-time');
-            if (timeEl) {
-                const mins = Math.floor(state.totalPlaySeconds / 60);
-                const secs = Math.floor(state.totalPlaySeconds % 60);
-                timeEl.textContent = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-            }
+            showVictoryScreen();
         }
         return;
     }
@@ -399,7 +593,7 @@ function update() {
         
         if (!state.waveSpawning && state.invaders.length === 0) {
             if (state.wave % 5 === 0) {
-                // presentLevelUpChoices logic
+                presentLevelUpChoices();
             } else {
                 startWave(state.wave + 1);
             }
@@ -431,6 +625,30 @@ function update() {
                     } else {
                         b.pierce--;
                     }
+                    break;
+                }
+            }
+            if (bulletRemoved) continue;
+            
+            // Player Bullet vs Powerups
+            for (let pIdx = state.powerups.length - 1; pIdx >= 0; pIdx--) {
+                const p = state.powerups[pIdx];
+                const distP = Math.hypot(b.x - p.x, b.y - p.y);
+                if (distP < b.radius + p.radius) {
+                    sound.playPowerup();
+                    createParticles(p.x, p.y, p.color, 20);
+                    if (p.type === 'triple') {
+                        state.player.tripleShotTimer = 480;
+                    } else if (p.type === 'rapid') {
+                        state.player.rapidFireTimer = 420;
+                    } else if (p.type === 'shield') {
+                        state.player.shieldTimer = 550;
+                    } else if (p.type === 'nuke') {
+                        triggerNova();
+                    }
+                    state.powerups.splice(pIdx, 1);
+                    state.bullets.splice(i, 1);
+                    bulletRemoved = true;
                     break;
                 }
             }
