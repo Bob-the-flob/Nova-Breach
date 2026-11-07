@@ -51,6 +51,42 @@ export function togglePause() {
     }
 }
 
+export function returnToMainMenu() {
+    state.current = GameState.MENU;
+    state.pausedFromState = null;
+    state.bossActive = false;
+    state.boss = null;
+    state.bullets = [];
+    state.enemyBullets = [];
+    state.invaders = [];
+    state.powerups = [];
+    state.particles = [];
+    state.shockwaves = [];
+
+    const pauseScreen = document.getElementById('pause-screen');
+    if (pauseScreen) pauseScreen.classList.add('hidden');
+
+    const bossHealth = document.getElementById('boss-health');
+    if (bossHealth) bossHealth.classList.add('hidden');
+
+    const lvlScreen = document.getElementById('levelup-screen');
+    if (lvlScreen) lvlScreen.classList.add('hidden');
+
+    const victoryScreen = document.getElementById('victory-screen');
+    if (victoryScreen) victoryScreen.classList.add('hidden');
+
+    const goScreen = document.getElementById('gameover-screen');
+    if (goScreen) goScreen.classList.add('hidden');
+
+    const startScreen = document.getElementById('start-screen');
+    if (startScreen) startScreen.classList.remove('hidden');
+
+    const pauseBtn = document.getElementById('pause-btn');
+    if (pauseBtn) pauseBtn.textContent = 'PAUSE';
+
+    updateHud();
+}
+
 // Input Listeners
 window.addEventListener('keydown', (e) => {
     sound.init();
@@ -60,8 +96,11 @@ window.addEventListener('keydown', (e) => {
     }
     if (e.code === 'ArrowLeft' || e.code === 'KeyA' || e.code === 'KeyQ') state.keys.left = true;
     if (e.code === 'ArrowRight' || e.code === 'KeyD') state.keys.right = true;
-    if (e.code === 'Space' || e.key.toLowerCase() === 'e') {
-        if (state.current === GameState.PLAYING || state.current === GameState.BOSS_FIGHT) triggerNova();
+    if (e.code === 'Space' || e.key === ' ' || e.key.toLowerCase() === 'e') {
+        e.preventDefault();
+        if (state.current === GameState.PLAYING || state.current === GameState.BOSS_FIGHT) {
+            triggerNova();
+        }
     }
 });
 window.addEventListener('keyup', (e) => {
@@ -419,7 +458,7 @@ export function openStyleReward() {
             banner.classList.add('active');
         }
         state.current = GameState.PLAYING;
-        startWave(21);
+        startWave(16);
     };
     container.appendChild(card);
     screen.classList.remove('hidden');
@@ -490,6 +529,7 @@ export function initGame() {
     document.getElementById('levelup-screen')?.classList.add('hidden');
     document.getElementById('gameover-screen')?.classList.add('hidden');
     document.getElementById('pause-screen')?.classList.add('hidden');
+    document.getElementById('settings-screen')?.classList.add('hidden');
     
     const pauseBtn = document.getElementById('pause-btn');
     if (pauseBtn) pauseBtn.textContent = 'PAUSE';
@@ -547,7 +587,7 @@ function update() {
     if ([GameState.PLAYING, GameState.BOSS_FIGHT, GameState.BOSS_CUTSCENE].includes(state.current)) {
         state.totalPlaySeconds += 1 / 60;
     }
-    if (state.current === GameState.GAMEOVER) return;
+    if (state.current === GameState.GAMEOVER || state.current === GameState.MENU) return;
     
     if (state.current === GameState.BOSS_FIGHT) {
         updateBossFight();
@@ -820,6 +860,48 @@ function bindGameEvents() {
     document.getElementById('restart-btn')?.addEventListener('click', initGame);
     document.getElementById('pause-btn')?.addEventListener('click', togglePause);
     document.getElementById('resume-btn')?.addEventListener('click', togglePause);
+    document.getElementById('quit-menu-btn')?.addEventListener('click', returnToMainMenu);
+
+    // Settings Modal
+    const settingsScreen = document.getElementById('settings-screen');
+    const openSettingsBtn = document.getElementById('open-settings-btn');
+    const closeSettingsBtn = document.getElementById('close-settings-btn');
+    const volumeSlider = document.getElementById('setting-volume');
+    const volumeVal = document.getElementById('volume-val');
+    const posLeftRadio = document.getElementById('nova-pos-left');
+    const posRightRadio = document.getElementById('nova-pos-right');
+
+    openSettingsBtn?.addEventListener('click', () => {
+        sound.init();
+        settingsScreen?.classList.remove('hidden');
+    });
+
+    closeSettingsBtn?.addEventListener('click', () => {
+        settingsScreen?.classList.add('hidden');
+    });
+
+    volumeSlider?.addEventListener('input', (e) => {
+        sound.init();
+        const val = parseFloat(e.target.value);
+        sound.setVolume(val);
+        if (volumeVal) volumeVal.textContent = `${Math.round(val * 100)}%`;
+    });
+
+    const updateNovaPos = (pos) => {
+        if (!touchNovaBtn) return;
+        if (pos === 'left') {
+            touchNovaBtn.classList.add('pos-left');
+        } else {
+            touchNovaBtn.classList.remove('pos-left');
+        }
+    };
+
+    posLeftRadio?.addEventListener('change', () => {
+        if (posLeftRadio.checked) updateNovaPos('left');
+    });
+    posRightRadio?.addEventListener('change', () => {
+        if (posRightRadio.checked) updateNovaPos('right');
+    });
 }
 
 if (document.readyState === 'loading') {
