@@ -148,7 +148,7 @@ class RetroAudio {
         osc.frequency.exponentialRampToValueAtTime(650, now + 0.22);
         osc.frequency.exponentialRampToValueAtTime(25, now + 0.6);
         gain.gain.setValueAtTime(0.35, now);
-        gain.gain.exponentialRampToTime(0.01, now + 0.6);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.6);
         osc.connect(gain);
         gain.connect(this.masterGain);
         osc.start(now);
