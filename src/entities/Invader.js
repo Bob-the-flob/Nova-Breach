@@ -256,9 +256,21 @@ export default class Invader {
             state.ctx.lineTo(0, r * 0.5);
             state.ctx.lineTo(-r * 0.8, r);
         } else if (this.type === 'healer') {
-            const r = this.radius * 0.7;
-            state.ctx.rect(-r * 0.35, -r, r * 0.7, r * 2);
-            state.ctx.rect(-r, -r * 0.35, r * 0.7, r * 0.7);
+            const r = this.radius;
+            const w = r * 0.6;
+            // Draw a full 12-point plus/cross polygon
+            state.ctx.moveTo(-w / 2, -r);
+            state.ctx.lineTo(w / 2, -r);
+            state.ctx.lineTo(w / 2, -w / 2);
+            state.ctx.lineTo(r, -w / 2);
+            state.ctx.lineTo(r, w / 2);
+            state.ctx.lineTo(w / 2, w / 2);
+            state.ctx.lineTo(w / 2, r);
+            state.ctx.lineTo(-w / 2, r);
+            state.ctx.lineTo(-w / 2, w / 2);
+            state.ctx.lineTo(-r, w / 2);
+            state.ctx.lineTo(-r, -w / 2);
+            state.ctx.lineTo(-w / 2, -w / 2);
         } else {
             state.ctx.moveTo(0, this.radius);
             state.ctx.lineTo(-this.radius, -this.radius);
