@@ -96,7 +96,7 @@ export default class PlayerShip {
         }
     }
     
-    takeDamage(amount = 1) {
+    takeDamage() {
         if (this.invulnerableTimer > 0) return false;
         if (this.shieldTimer > 0) {
             this.shieldTimer = 0;
@@ -106,7 +106,7 @@ export default class PlayerShip {
             return false;
         }
         
-        this.health = Math.max(0, this.health - amount);
+        this.health--;
         this.invulnerableTimer = 65;
         sound.playHit();
         triggerShake(12);

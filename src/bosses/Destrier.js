@@ -6,17 +6,6 @@ import Bullet from '../entities/Bullet.js';
 import Shockwave from '../fx/Shockwave.js';
 import { createParticles, updateHearts, updateHud } from '../main.js';
 
-// Helper to retrieve developer mode modifiers for Destrier
-function getBossDevModifier() {
-    if (!state.devSettings || !state.devSettings.active) {
-        return { hp: 1.0, speed: 1.0, dmg: 1.0, aimChance: 1.0 };
-    }
-    if (state.devSettings.mode === 'specific' && state.devSettings.specific && state.devSettings.specific.boss_destrier) {
-        return state.devSettings.specific.boss_destrier;
-    }
-    return state.devSettings.global || { hp: 1.0, speed: 1.0, dmg: 1.0, aimChance: 1.0 };
-}
-
 // --- Math Helpers for Boss Hitboxes & Lasers ---
 function pointInPolygon(x, y, points) {
     let inside = false;
@@ -67,15 +56,9 @@ const DESTRIER_PROJECT = {
 
 class Destrier extends Boss {
     constructor() {
-        const mod = getBossDevModifier();
-        const baseHp = Math.max(1, Math.round(420 * (mod.hp || 1.0)));
-        const baseSpeed = 2.2 * (mod.speed || 1.0);
-
-        super(state.width / 2, Math.max(140, state.height * 0.28), baseHp, baseSpeed);
-        
-        const dmgFactor = mod.dmg || 1.0;
-        this.shotCooldown = Math.max(15, Math.floor(40 / dmgFactor));
-        this.laserCooldown = Math.max(60, Math.floor(330 / dmgFactor));
+        super(state.width / 2, Math.max(140, state.height * 0.28), 420, 2.2);
+        this.shotCooldown = 40;
+        this.laserCooldown = 330;
         this.laserWarning = 0;
         this.laserActive = 0;
         this.lasers = [];
@@ -193,31 +176,20 @@ export function updateBossFight() {
         boss.stopped = false;
         boss.laserCooldown--;
         if (boss.laserCooldown <= 0) {
-            const mod = getBossDevModifier();
             boss.beginLaserPattern();
-            const dmgFactor = mod.dmg || 1.0;
-            boss.laserCooldown = Math.max(60, Math.floor((phaseTwo ? 210 : 350) / dmgFactor));
+            boss.laserCooldown = phaseTwo ? 210 : 350;
         }
     }
 
     if (!boss.stopped) {
         boss.shotCooldown--;
         if (boss.shotCooldown <= 0) {
-            const mod = getBossDevModifier();
-            const dmgFactor = mod.dmg || 1.0;
-            const muzzleOffset = Math.max(15, Math.floor((phaseTwo ? 42 : 62) / dmgFactor));
-            const baseAimChance = 1.0;
-            const effectiveAimChance = Math.max(0, Math.min(1.0, baseAimChance * (mod.aimChance !== undefined ? mod.aimChance : 1.0)));
-
+            const muzzleOffset = phaseTwo ? 42 : 62;
             for (let i = 0; i < 2; i++) {
                 const muzzle = DESTRIER_PROJECT.muzzles[i];
                 const start = boss.localPoint(muzzle.x, muzzle.y);
-                const angle = Math.random() < effectiveAimChance
-                    ? Math.atan2(state.player.y - start.y, state.player.x - start.x)
-                    : Math.PI / 2;
-
-                const bulletDmg = 1 * dmgFactor;
-                state.enemyBullets.push(new Bullet(start.x, start.y, angle, '#ff0055', true, false, bulletDmg));
+                const angle = Math.atan2(state.player.y - start.y, state.player.x - start.x);
+                state.enemyBullets.push(new Bullet(start.x, start.y, angle, '#ff0055', true, false));
             }
             boss.shotCooldown = muzzleOffset;
         }
