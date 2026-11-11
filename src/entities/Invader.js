@@ -4,17 +4,6 @@ import { sound } from '../audio.js';
 import Bullet from './Bullet.js';
 import { createParticles } from '../main.js';
 
-// Helper function to resolve the active developer modifiers for this enemy type
-function getDevModifier(type) {
-    if (!state.devSettings || !state.devSettings.active) {
-        return { hp: 1.0, speed: 1.0, dmg: 1.0, aimChance: 1.0 };
-    }
-    if (state.devSettings.mode === 'specific' && state.devSettings.specific && state.devSettings.specific[type]) {
-        return state.devSettings.specific[type];
-    }
-    return state.devSettings.global || { hp: 1.0, speed: 1.0, dmg: 1.0, aimChance: 1.0 };
-}
-
 export default class Invader {
     constructor(x, y, type, wave) {
         this.baseX = x;
@@ -24,14 +13,12 @@ export default class Invader {
         this.wave = wave;
         this.wobble = Math.random() * Math.PI * 2;
         this.wobbleSpeed = 0.025 + Math.random() * 0.015;
-
-        const mod = getDevModifier(this.type);
-        const baseDrop = (0.42 + Math.min(wave * 0.025, 0.65)) * (mod.speed || 1.0);
+        const baseDrop = 0.42 + Math.min(wave * 0.025, 0.65);
         
         switch (this.type) {
             case 'dart':
                 this.radius = 12;
-                this.maxHp = Math.max(1, Math.round((1 + Math.floor(wave * 0.15)) * (mod.hp || 1.0)));
+                this.maxHp = 1 + Math.floor(wave * 0.15);
                 this.speedY = baseDrop * 1.35;
                 this.color = '#00ffea';
                 this.points = 120;
@@ -41,7 +28,7 @@ export default class Invader {
                 break;
             case 'tank':
                 this.radius = 23;
-                this.maxHp = Math.max(1, Math.round((4 + Math.floor(wave * 0.35)) * (mod.hp || 1.0)));
+                this.maxHp = 4 + Math.floor(wave * 0.35);
                 this.speedY = baseDrop * 0.65;
                 this.color = '#ff9900';
                 this.points = 320;
@@ -51,14 +38,14 @@ export default class Invader {
                 break;
             case 'splitter':
                 this.radius = 17;
-                this.maxHp = Math.max(1, Math.round((2 + Math.floor(wave * 0.22)) * (mod.hp || 1.0)));
+                this.maxHp = 2 + Math.floor(wave * 0.22);
                 this.speedY = baseDrop * 0.9;
                 this.color = '#33ff55';
                 this.points = 210;
                 break;
             case 'mini_drone':
                 this.radius = 9;
-                this.maxHp = Math.max(1, Math.round(1 * (mod.hp || 1.0)));
+                this.maxHp = 1;
                 this.speedY = baseDrop * 3.4;
                 this.wobbleSpeed = 0.09;
                 this.color = '#76ff03';
@@ -66,14 +53,14 @@ export default class Invader {
                 break;
             case 'disruptor':
                 this.radius = 16;
-                this.maxHp = Math.max(1, Math.round((2 + Math.floor(wave * 0.25)) * (mod.hp || 1.0)));
+                this.maxHp = 2 + Math.floor(wave * 0.25);
                 this.speedY = baseDrop * 0.8;
                 this.color = '#ff00aa';
                 this.points = 240;
                 break;
             case 'phantom':
                 this.radius = 15;
-                this.maxHp = Math.max(1, Math.round((2 + Math.floor(wave * 0.2)) * (mod.hp || 1.0)));
+                this.maxHp = 2 + Math.floor(wave * 0.2);
                 this.speedY = baseDrop * 0.85;
                 this.color = '#b042ff';
                 this.points = 260;
@@ -81,7 +68,7 @@ export default class Invader {
                 break;
             case 'healer':
                 this.radius = 16;
-                this.maxHp = Math.max(1, Math.round((2 + Math.floor(wave * 0.22)) * (mod.hp || 1.0)));
+                this.maxHp = 2 + Math.floor(wave * 0.22);
                 this.speedY = baseDrop * 0.75;
                 this.color = '#ffff33';
                 this.points = 270;
@@ -89,17 +76,14 @@ export default class Invader {
                 break;
             default:
                 this.radius = 14;
-                this.maxHp = Math.max(1, Math.round((1 + Math.floor(wave * 0.2)) * (mod.hp || 1.0)));
+                this.maxHp = 1 + Math.floor(wave * 0.2);
                 this.speedY = baseDrop;
                 this.color = '#00e5ff';
                 this.points = 100;
                 break;
         }
         this.hp = this.maxHp;
-
-        // The damage modifier scales the firing frequency
-        const dmgFactor = mod.dmg || 1.0;
-        const baseCooldown = Math.max(30, Math.floor(Math.max(90, 220 - wave * 4) / dmgFactor));
+        const baseCooldown = Math.max(90, 220 - wave * 4);
         this.shootCooldown = Math.floor(Math.random() * baseCooldown) + baseCooldown;
     }
 
@@ -189,8 +173,7 @@ export default class Invader {
         if (this.type !== 'mini_drone') {
             this.shootCooldown--;
             if (this.shootCooldown <= 0 && this.y > 60 && this.y < state.height - 100) {
-                const mod = getDevModifier(this.type);
-                const aimChances = {
+                const aimChance = {
                     disruptor: 1.0,
                     healer: 0.0,
                     scout: 0.15,
@@ -198,23 +181,17 @@ export default class Invader {
                     splitter: 0.20,
                     dart: 0.45,
                     phantom: 0.50
-                };
-                const baseAimChance = aimChances[this.type] !== undefined ? aimChances[this.type] : 0.15;
-                const effectiveAimChance = Math.max(0, Math.min(1.0, baseAimChance * (mod.aimChance !== undefined ? mod.aimChance : 1.0)));
-
-                const angle = Math.random() < effectiveAimChance
+                }[this.type] || 0;
+                const angle = Math.random() < aimChance
                     ? Math.atan2((state.height - 52) - this.y, state.player.x - this.x)
                     : Math.PI / 2;
 
-                const bulletDmg = 1 * (mod.dmg || 1.0);
                 if (this.type === 'disruptor') {
-                    state.enemyBullets.push(new Bullet(this.x, this.y, angle, '#ff00aa', true, true, bulletDmg));
+                    state.enemyBullets.push(new Bullet(this.x, this.y, angle, '#ff00aa', true, true));
                 } else {
-                    state.enemyBullets.push(new Bullet(this.x, this.y, angle, '#ff0055', true, false, bulletDmg));
+                    state.enemyBullets.push(new Bullet(this.x, this.y, angle, '#ff0055', true, false));
                 }
-
-                const dmgFactor = mod.dmg || 1.0;
-                const baseCooldown = Math.max(30, Math.floor(Math.max(90, 220 - this.wave * 4) / dmgFactor));
+                const baseCooldown = Math.max(90, 220 - this.wave * 4);
                 this.shootCooldown = Math.floor(Math.random() * baseCooldown) + baseCooldown;
             }
         }
@@ -281,6 +258,7 @@ export default class Invader {
         } else if (this.type === 'healer') {
             const r = this.radius;
             const w = r * 0.6;
+            // Draw a full 12-point plus/cross polygon
             state.ctx.moveTo(-w / 2, -r);
             state.ctx.lineTo(w / 2, -r);
             state.ctx.lineTo(w / 2, -w / 2);
