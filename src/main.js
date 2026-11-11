@@ -1,5 +1,5 @@
 // src/main.js
-import { GameState, state, triggerShake } from './state.js';
+import { GameState, state, triggerShake, saveDevSettings } from './state.js';
 import { sound } from './audio.js';
 import { SHIP_SKINS, STYLE_UPGRADE, RANDOM_UPGRADE_POOL } from './config.js';
 import PlayerShip from './entities/Player.js';
@@ -16,6 +16,16 @@ state.canvas = document.getElementById('gameCanvas');
 state.ctx = state.canvas.getContext('2d');
 const breachFlash = document.getElementById('breach-flash');
 const touchNovaBtn = document.getElementById('touch-nova-btn');
+const devWatermark = document.getElementById('dev-watermark');
+
+export function updateDevWatermark() {
+    if (!devWatermark) return;
+    if (state.devSettings && state.devSettings.active) {
+        devWatermark.classList.remove('hidden');
+    } else {
+        devWatermark.classList.add('hidden');
+    }
+}
 
 export function resize() {
     state.dpr = window.devicePixelRatio || 1;
@@ -46,6 +56,12 @@ export function togglePause() {
         const pauseScreen = document.getElementById('pause-screen');
         if (pauseScreen) pauseScreen.classList.add('hidden');
 
+        const settingsScreen = document.getElementById('settings-screen');
+        if (settingsScreen) settingsScreen.classList.add('hidden');
+
+        const devScreen = document.getElementById('dev-screen');
+        if (devScreen) devScreen.classList.add('hidden');
+
         const pauseBtn = document.getElementById('pause-btn');
         if (pauseBtn) pauseBtn.textContent = 'PAUSE';
     }
@@ -66,6 +82,12 @@ export function returnToMainMenu() {
     const pauseScreen = document.getElementById('pause-screen');
     if (pauseScreen) pauseScreen.classList.add('hidden');
 
+    const settingsScreen = document.getElementById('settings-screen');
+    if (settingsScreen) settingsScreen.classList.add('hidden');
+
+    const devScreen = document.getElementById('dev-screen');
+    if (devScreen) devScreen.classList.add('hidden');
+
     const bossHealth = document.getElementById('boss-health');
     if (bossHealth) bossHealth.classList.add('hidden');
 
@@ -85,6 +107,7 @@ export function returnToMainMenu() {
     if (pauseBtn) pauseBtn.textContent = 'PAUSE';
 
     updateHud();
+    updateDevWatermark();
 }
 
 // Input Listeners
@@ -523,17 +546,19 @@ export function initGame() {
     state.kills = 0;
     
     updateHearts();
-    startWave(1);
+    startWave(state.wave || 1);
     
     document.getElementById('start-screen')?.classList.add('hidden');
     document.getElementById('levelup-screen')?.classList.add('hidden');
     document.getElementById('gameover-screen')?.classList.add('hidden');
     document.getElementById('pause-screen')?.classList.add('hidden');
     document.getElementById('settings-screen')?.classList.add('hidden');
+    document.getElementById('dev-screen')?.classList.add('hidden');
     
     const pauseBtn = document.getElementById('pause-btn');
     if (pauseBtn) pauseBtn.textContent = 'PAUSE';
     
+    updateDevWatermark();
     state.current = GameState.PLAYING;
 }
 
@@ -551,6 +576,10 @@ export function startWave(waveNum) {
         startBossFight();
         return;
     }
+
+    state.bossActive = false;
+    state.boss = null;
+    document.getElementById('boss-health')?.classList.add('hidden');
 
     const cols = Math.min(7, Math.max(4, Math.floor(state.width / 80)));
     const rows = Math.min(5, 2 + Math.floor((state.wave - 1) / 3));
@@ -855,6 +884,46 @@ function gameLoop() {
     requestAnimationFrame(gameLoop);
 }
 
+function syncDevUIFromState() {
+    const dev = state.devSettings;
+    if (!dev) return;
+
+    const globalRadio = document.getElementById('dev-mode-global');
+    const specificRadio = document.getElementById('dev-mode-specific');
+    const globalPanel = document.getElementById('dev-global-panel');
+    const specificPanel = document.getElementById('dev-specific-panel');
+
+    if (dev.mode === 'specific') {
+        if (specificRadio) specificRadio.checked = true;
+        if (globalPanel) globalPanel.classList.add('hidden');
+        if (specificPanel) specificPanel.classList.remove('hidden');
+    } else {
+        if (globalRadio) globalRadio.checked = true;
+        if (globalPanel) globalPanel.classList.remove('hidden');
+        if (specificPanel) specificPanel.classList.add('hidden');
+    }
+
+    const setSlider = (id, valId, val) => {
+        const slider = document.getElementById(id);
+        const label = document.getElementById(valId);
+        if (slider) slider.value = val;
+        if (label) label.textContent = Number(val).toFixed(1);
+    };
+
+    setSlider('dev-global-hp', 'dev-global-hp-val', dev.global.hp);
+    setSlider('dev-global-speed', 'dev-global-speed-val', dev.global.speed);
+    setSlider('dev-global-dmg', 'dev-global-dmg-val', dev.global.dmg);
+    setSlider('dev-global-aim', 'dev-global-aim-val', dev.global.aimChance);
+
+    const destrier = dev.specific.boss_destrier;
+    setSlider('dev-boss-hp', 'dev-boss-hp-val', destrier.hp);
+    setSlider('dev-boss-speed', 'dev-boss-speed-val', destrier.speed);
+    setSlider('dev-boss-aim', 'dev-boss-aim-val', destrier.aimChance);
+
+    const waveInput = document.getElementById('dev-wave-input');
+    if (waveInput) waveInput.value = state.wave || 1;
+}
+
 function bindGameEvents() {
     document.getElementById('start-btn')?.addEventListener('click', initGame);
     document.getElementById('restart-btn')?.addEventListener('click', initGame);
@@ -862,19 +931,24 @@ function bindGameEvents() {
     document.getElementById('resume-btn')?.addEventListener('click', togglePause);
     document.getElementById('quit-menu-btn')?.addEventListener('click', returnToMainMenu);
 
-    // Settings Modal
+    // Settings Screen Modals & Pause Integration
     const settingsScreen = document.getElementById('settings-screen');
     const openSettingsBtn = document.getElementById('open-settings-btn');
+    const pauseSettingsBtn = document.getElementById('pause-settings-btn');
     const closeSettingsBtn = document.getElementById('close-settings-btn');
     const volumeSlider = document.getElementById('setting-volume');
     const volumeVal = document.getElementById('volume-val');
+    const muteCheckbox = document.getElementById('setting-mute');
     const posLeftRadio = document.getElementById('nova-pos-left');
     const posRightRadio = document.getElementById('nova-pos-right');
 
-    openSettingsBtn?.addEventListener('click', () => {
+    const openSettings = () => {
         sound.init();
         settingsScreen?.classList.remove('hidden');
-    });
+    };
+
+    openSettingsBtn?.addEventListener('click', openSettings);
+    pauseSettingsBtn?.addEventListener('click', openSettings);
 
     closeSettingsBtn?.addEventListener('click', () => {
         settingsScreen?.classList.add('hidden');
@@ -885,6 +959,11 @@ function bindGameEvents() {
         const val = parseFloat(e.target.value);
         sound.setVolume(val);
         if (volumeVal) volumeVal.textContent = `${Math.round(val * 100)}%`;
+    });
+
+    muteCheckbox?.addEventListener('change', (e) => {
+        sound.init();
+        sound.setMuted(e.target.checked);
     });
 
     const updateNovaPos = (pos) => {
@@ -902,15 +981,133 @@ function bindGameEvents() {
     posRightRadio?.addEventListener('change', () => {
         if (posRightRadio.checked) updateNovaPos('right');
     });
+
+    // Developer Terminal & Mode Listeners
+    const devCodeInput = document.getElementById('dev-code-input');
+    const devScreen = document.getElementById('dev-screen');
+    const closeDevBtn = document.getElementById('close-dev-btn');
+    const leaveDevBtn = document.getElementById('leave-dev-btn');
+    const devModeGlobal = document.getElementById('dev-mode-global');
+    const devModeSpecific = document.getElementById('dev-mode-specific');
+    const devGlobalPanel = document.getElementById('dev-global-panel');
+    const devSpecificPanel = document.getElementById('dev-specific-panel');
+    const devSetWaveBtn = document.getElementById('dev-set-wave-btn');
+    const devUpgradeShipBtn = document.getElementById('dev-upgrade-ship-btn');
+
+    devCodeInput?.addEventListener('input', (e) => {
+        if (e.target.value.trim() === 'ILikeCheese') {
+            sound.init();
+            sound.playPowerup();
+            e.target.value = '';
+            state.devSettings.active = true;
+            saveDevSettings();
+            updateDevWatermark();
+            syncDevUIFromState();
+            settingsScreen?.classList.add('hidden');
+            devScreen?.classList.remove('hidden');
+        }
+    });
+
+    devModeGlobal?.addEventListener('change', () => {
+        if (devModeGlobal.checked) {
+            state.devSettings.mode = 'global';
+            devGlobalPanel?.classList.remove('hidden');
+            devSpecificPanel?.classList.add('hidden');
+            saveDevSettings();
+        }
+    });
+
+    devModeSpecific?.addEventListener('change', () => {
+        if (devModeSpecific.checked) {
+            state.devSettings.mode = 'specific';
+            devGlobalPanel?.classList.add('hidden');
+            devSpecificPanel?.classList.remove('hidden');
+            saveDevSettings();
+        }
+    });
+
+    const bindSlider = (id, valId, updater) => {
+        const slider = document.getElementById(id);
+        const label = document.getElementById(valId);
+        slider?.addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            if (label) label.textContent = val.toFixed(1);
+            updater(val);
+            saveDevSettings();
+        });
+    };
+
+    bindSlider('dev-global-hp', 'dev-global-hp-val', (v) => { state.devSettings.global.hp = v; });
+    bindSlider('dev-global-speed', 'dev-global-speed-val', (v) => { state.devSettings.global.speed = v; });
+    bindSlider('dev-global-dmg', 'dev-global-dmg-val', (v) => { state.devSettings.global.dmg = v; });
+    bindSlider('dev-global-aim', 'dev-global-aim-val', (v) => { state.devSettings.global.aimChance = v; });
+
+    bindSlider('dev-boss-hp', 'dev-boss-hp-val', (v) => { state.devSettings.specific.boss_destrier.hp = v; });
+    bindSlider('dev-boss-speed', 'dev-boss-speed-val', (v) => { state.devSettings.specific.boss_destrier.speed = v; });
+    bindSlider('dev-boss-aim', 'dev-boss-aim-val', (v) => { state.devSettings.specific.boss_destrier.aimChance = v; });
+
+    devSetWaveBtn?.addEventListener('click', () => {
+        const input = document.getElementById('dev-wave-input');
+        if (!input) return;
+        const targetWave = Math.max(1, parseInt(input.value, 10) || 1);
+        state.wave = targetWave;
+
+        if (state.current === GameState.PLAYING || state.current === GameState.BOSS_FIGHT || state.current === GameState.PAUSED) {
+            state.invaders = [];
+            state.enemyBullets = [];
+            state.bullets = [];
+            state.powerups = [];
+            if (state.pausedFromState) state.pausedFromState = GameState.PLAYING;
+            startWave(targetWave);
+        }
+        sound.playAbility();
+    });
+
+    devUpgradeShipBtn?.addEventListener('click', () => {
+        if (!state.player) return;
+        state.player.skinIndex = SHIP_SKINS.length - 1;
+        const tierEl = document.getElementById('hud-tier');
+        if (tierEl) tierEl.textContent = SHIP_SKINS[state.player.skinIndex].name;
+
+        RANDOM_UPGRADE_POOL.forEach(upg => {
+            state.player.upgrades[upg.id] = 5;
+            upg.apply(state.player, 5);
+        });
+
+        state.player.maxHealth = 6;
+        state.player.health = 6;
+        updateHearts();
+        updateHud();
+        sound.playLevelUp();
+        createParticles(state.player.x, state.player.y, '#00ffcc', 40);
+    });
+
+    closeDevBtn?.addEventListener('click', () => {
+        saveDevSettings();
+        devScreen?.classList.add('hidden');
+    });
+
+    leaveDevBtn?.addEventListener('click', () => {
+        state.devSettings.active = false;
+        saveDevSettings();
+        updateDevWatermark();
+        devScreen?.classList.add('hidden');
+        sound.playHit();
+    });
 }
 
 if (document.readyState === 'loading') {
-    window.addEventListener('DOMContentLoaded', bindGameEvents);
+    window.addEventListener('DOMContentLoaded', () => {
+        bindGameEvents();
+        updateDevWatermark();
+    });
 } else {
     bindGameEvents();
+    updateDevWatermark();
 }
 
 window.onload = function() {
     resize();
+    updateDevWatermark();
     gameLoop();
 };

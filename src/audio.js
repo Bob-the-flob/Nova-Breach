@@ -5,6 +5,7 @@ class RetroAudio {
         this.ctx = null;
         this.masterGain = null;
         this.volume = 1.0;
+        this.isMuted = false;
     }
     
     init() {
@@ -14,7 +15,8 @@ class RetroAudio {
             try {
                 this.ctx = new AudioCtx();
                 this.masterGain = this.ctx.createGain();
-                this.masterGain.gain.setValueAtTime(this.volume, this.ctx.currentTime);
+                const effectiveVolume = this.isMuted ? 0 : this.volume;
+                this.masterGain.gain.setValueAtTime(effectiveVolume, this.ctx.currentTime);
                 this.masterGain.connect(this.ctx.destination);
             } catch (error) {
                 console.warn('Audio is unavailable; continuing without sound.', error);
@@ -28,8 +30,16 @@ class RetroAudio {
 
     setVolume(val) {
         this.volume = Math.max(0, Math.min(1, val));
-        if (this.ctx && this.masterGain) {
+        if (this.ctx && this.masterGain && !this.isMuted) {
             this.masterGain.gain.setValueAtTime(this.volume, this.ctx.currentTime);
+        }
+    }
+
+    setMuted(muted) {
+        this.isMuted = Boolean(muted);
+        if (this.ctx && this.masterGain) {
+            const targetVolume = this.isMuted ? 0 : this.volume;
+            this.masterGain.gain.setValueAtTime(targetVolume, this.ctx.currentTime);
         }
     }
     
