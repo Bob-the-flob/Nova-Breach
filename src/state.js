@@ -11,6 +11,40 @@ export const GameState = {
     BOSS_REWARDS: 7
 };
 
+// Default settings dictionary for Developer Mode
+const defaultDevSettings = {
+    active: false,
+    mode: 'global', // 'global' or 'specific'
+    global: {
+        hp: 1.0,
+        speed: 1.0,
+        dmg: 1.0,
+        aimChance: 1.0
+    },
+    specific: {
+        scout: { hp: 1.0, speed: 1.0, dmg: 1.0, aimChance: 1.0 },
+        dart: { hp: 1.0, speed: 1.0, dmg: 1.0, aimChance: 1.0 },
+        tank: { hp: 1.0, speed: 1.0, dmg: 1.0, aimChance: 1.0 },
+        splitter: { hp: 1.0, speed: 1.0, dmg: 1.0, aimChance: 1.0 },
+        mini_drone: { hp: 1.0, speed: 1.0, dmg: 1.0, aimChance: 1.0 },
+        disruptor: { hp: 1.0, speed: 1.0, dmg: 1.0, aimChance: 1.0 },
+        phantom: { hp: 1.0, speed: 1.0, dmg: 1.0, aimChance: 1.0 },
+        healer: { hp: 1.0, speed: 1.0, dmg: 1.0, aimChance: 1.0 },
+        boss_destrier: { hp: 1.0, speed: 1.0, dmg: 1.0, aimChance: 1.0 }
+    }
+};
+
+// Retrieve settings stored on this device, falling back to defaults if not set
+let loadedDevSettings = defaultDevSettings;
+try {
+    const rawStored = localStorage.getItem('neon_invaders_dev');
+    if (rawStored) {
+        loadedDevSettings = { ...defaultDevSettings, ...JSON.parse(rawStored) };
+    }
+} catch (e) {
+    console.warn('Unable to load developer settings from localStorage:', e);
+}
+
 export const state = {
     current: GameState.MENU,
     pausedFromState: null,
@@ -51,9 +85,21 @@ export const state = {
     bossActive: false,
     boss: null,
     bossRewardStage: 0,
-    victoryCutsceneTimer: 0
+    victoryCutsceneTimer: 0,
+
+    // Developer Mode Settings
+    devSettings: loadedDevSettings
 };
 
 export function triggerShake(amt) {
     state.shake = Math.max(state.shake, amt);
+}
+
+// Persist the developer configuration to this device's browser memory
+export function saveDevSettings() {
+    try {
+        localStorage.setItem('neon_invaders_dev', JSON.stringify(state.devSettings));
+    } catch (e) {
+        console.warn('Unable to save developer settings to localStorage:', e);
+    }
 }
