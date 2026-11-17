@@ -600,7 +600,11 @@ export function startWave(waveNum) {
     
     let trackerCount = 0;
     if (state.wave >= 4) {
-        trackerCount = Math.min(3, Math.floor(state.wave / 4));
+        if (state.wave < 30) {
+            trackerCount = Math.min(3, Math.floor(state.wave / 4));
+        } else {
+            trackerCount = 3 + Math.floor((state.wave - 15) / 15);
+        }
     }
     for (let i = 0; i < trackerCount; i++) {
         const spawnTimer = 400 + i * 450; 
@@ -661,6 +665,12 @@ function update() {
         if (touchNovaBtn) {
             if (state.player.novaCharge >= 98) touchNovaBtn.classList.add('ready');
             else touchNovaBtn.classList.remove('ready');
+        }
+
+        if (!state.waveSpawning && state.invaders.length === 0 && state.trackerQueue.length > 0) {
+            if (state.trackerQueue[0].timer > 120) {
+                state.trackerQueue[0].timer = 120;
+            }
         }
         
         for (let i = state.trackerQueue.length - 1; i >= 0; i--) {
