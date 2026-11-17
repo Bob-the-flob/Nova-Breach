@@ -2,7 +2,7 @@
 import { state } from '../state.js';
 import { sound } from '../audio.js';
 import Bullet from './Bullet.js';
-import { createParticles } from '../main.js';
+import { createParticles, updateHud } from '../main.js';
 
 export default class Invader {
     constructor(x, y, type, wave) {
@@ -82,6 +82,8 @@ export default class Invader {
                 this.angle = Math.PI / 2;
                 this.color = '#ff3300';
                 this.points = 350;
+                this.retreatTimer = 0;
+                this.retreating = false;
                 break;
             default:
                 this.radius = 14;
@@ -162,7 +164,33 @@ export default class Invader {
                 if (healedAny) sound.playAbility();
             }
         } else if (this.type === 'tracker') {
-            if (state.player) {
+            const isOnlyEnemy = state.invaders.length === 1 && state.trackerQueue.length === 0 && !state.waveSpawning;
+            
+            if (isOnlyEnemy && state.player && !this.retreating) {
+                this.retreatTimer++;
+                if (this.retreatTimer >= 600) {
+                    this.retreating = true;
+                    sound.playAbility();
+                }
+            } else if (!isOnlyEnemy) {
+                this.retreatTimer = 0;
+            }
+
+            if (this.retreating) {
+                this.angle = -Math.PI / 2;
+                this.y -= this.speed * 2.5;
+                if (Math.random() < 0.5) {
+                    createParticles(this.x, this.y + this.radius, '#ffffff', 1);
+                }
+                
+                if (this.y < -50) {
+                    state.combo = 1.0;
+                    state.comboTimer = 0;
+                    updateHud();
+                    const idx = state.invaders.indexOf(this);
+                    if (idx > -1) state.invaders.splice(idx, 1);
+                }
+            } else if (state.player) {
                 const targetAngle = Math.atan2(state.player.y - this.y, state.player.x - this.x);
                 let diff = targetAngle - this.angle;
                 while (diff > Math.PI) diff -= Math.PI * 2;
