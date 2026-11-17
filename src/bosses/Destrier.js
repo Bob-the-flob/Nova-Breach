@@ -63,8 +63,8 @@ class Destrier extends Boss {
         this.laserActive = 0;
         this.lasers = [];
         this.shields = [
-            { x: state.width * 0.35, y: state.height * 0.62, radius: 18, phase: 0 },
-            { x: state.width * 0.65, y: state.height * 0.62, radius: 18, phase: Math.PI }
+            { x: state.width * 0.35, y: state.height * 0.5, radius: 18, phase: 0 },
+            { x: state.width * 0.65, y: state.height * 0.5, radius: 18, phase: Math.PI }
         ];
     }
 
@@ -148,7 +148,13 @@ export function updateBossFight() {
         const shield = boss.shields[i];
         shield.phase = (shield.phase || 0) + (phaseTwo ? 0.04 : 0.03);
         shield.x = state.width * 0.5 + Math.sin(shield.phase) * (state.width * 0.28);
-        shield.y = Math.min(state.height - 120, Math.max(boss.y + 120, state.height * 0.62));
+        shield.y = state.height * 0.5; // Locked to the visual limit line
+
+        // Player collision with shields
+        if (Math.hypot(state.player.x - shield.x, state.player.y - shield.y) < state.player.radius + shield.radius) {
+            state.player.takeDamage();
+            if (state.current === GameState.GAMEOVER) return;
+        }
     }
 
     boss.updateMove(phaseTwo ? 1.2 : 1);
