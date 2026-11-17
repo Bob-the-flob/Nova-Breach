@@ -183,7 +183,7 @@ export default class Invader {
                     phantom: 0.50
                 }[this.type] || 0;
                 const angle = Math.random() < aimChance
-                    ? Math.atan2((state.height - 52) - this.y, state.player.x - this.x)
+                    ? Math.atan2(state.player.y - this.y, state.player.x - this.x)
                     : Math.PI / 2;
 
                 if (this.type === 'disruptor') {
