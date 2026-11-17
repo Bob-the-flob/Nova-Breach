@@ -96,6 +96,8 @@ window.addEventListener('keydown', (e) => {
     }
     if (e.code === 'ArrowLeft' || e.code === 'KeyA' || e.code === 'KeyQ') state.keys.left = true;
     if (e.code === 'ArrowRight' || e.code === 'KeyD') state.keys.right = true;
+    if (e.code === 'ArrowUp' || e.code === 'KeyW' || e.code === 'KeyZ') state.keys.up = true;
+    if (e.code === 'ArrowDown' || e.code === 'KeyS') state.keys.down = true;
     if (e.code === 'Space' || e.key === ' ' || e.key.toLowerCase() === 'e') {
         e.preventDefault();
         if (state.current === GameState.PLAYING || state.current === GameState.BOSS_FIGHT) {
@@ -106,25 +108,35 @@ window.addEventListener('keydown', (e) => {
 window.addEventListener('keyup', (e) => {
     if (e.code === 'ArrowLeft' || e.code === 'KeyA' || e.code === 'KeyQ') state.keys.left = false;
     if (e.code === 'ArrowRight' || e.code === 'KeyD') state.keys.right = false;
+    if (e.code === 'ArrowUp' || e.code === 'KeyW' || e.code === 'KeyZ') state.keys.up = false;
+    if (e.code === 'ArrowDown' || e.code === 'KeyS') state.keys.down = false;
 });
 window.addEventListener('touchstart', (e) => {
     sound.init();
+    if (e.target && e.target.closest && e.target.closest('#touch-nova-btn')) return;
     if (e.touches.length > 0) {
         state.isTouching = true;
-        state.targetX = e.touches[0].clientX;
+        state.lastTouchX = e.touches[0].clientX;
+        state.lastTouchY = e.touches[0].clientY;
     }
 }, { passive: true });
 window.addEventListener('touchmove', (e) => {
-    if (e.touches.length > 0) {
-        state.targetX = e.touches[0].clientX;
+    if (e.touches.length > 0 && state.isTouching) {
+        const touchX = e.touches[0].clientX;
+        const touchY = e.touches[0].clientY;
+        state.targetX += (touchX - state.lastTouchX);
+        state.targetY += (touchY - state.lastTouchY);
+        state.lastTouchX = touchX;
+        state.lastTouchY = touchY;
     }
 }, { passive: true });
 window.addEventListener('touchend', () => {
     state.isTouching = false;
 });
 window.addEventListener('mousemove', (e) => {
-    if (!state.keys.left && !state.keys.right) {
-        state.targetX = e.clientX;
+    if (!state.keys.left && !state.keys.right && !state.keys.up && !state.keys.down) {
+        state.targetX += e.movementX;
+        state.targetY += e.movementY;
     }
 });
 window.addEventListener('contextmenu', (e) => {
@@ -504,8 +516,11 @@ export function initGame() {
     state.particles = [];
     state.shockwaves = [];
     state.targetX = state.width / 2;
+    state.targetY = state.height - 52;
     state.keys.left = false;
     state.keys.right = false;
+    state.keys.up = false;
+    state.keys.down = false;
     state.isTouching = false;
     state.totalPlaySeconds = 0;
     state.bossActive = false;
@@ -832,6 +847,16 @@ function draw() {
     state.ctx.beginPath();
     state.ctx.moveTo(0, state.height - 16);
     state.ctx.lineTo(state.width, state.height - 16);
+    state.ctx.stroke();
+    state.ctx.restore();
+
+    state.ctx.save();
+    state.ctx.strokeStyle = 'rgba(0, 240, 255, 0.15)';
+    state.ctx.setLineDash([8, 8]);
+    state.ctx.lineWidth = 1;
+    state.ctx.beginPath();
+    state.ctx.moveTo(0, state.height * 0.5);
+    state.ctx.lineTo(state.width, state.height * 0.5);
     state.ctx.stroke();
     state.ctx.restore();
 
