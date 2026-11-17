@@ -168,7 +168,7 @@ export default class Invader {
             
             if (isOnlyEnemy && state.player && !this.retreating) {
                 this.retreatTimer++;
-                if (this.retreatTimer >= 600) {
+                if (this.retreatTimer >= 900) {
                     this.retreating = true;
                     sound.playAbility();
                 }
