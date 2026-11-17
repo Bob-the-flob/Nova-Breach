@@ -34,20 +34,35 @@ export default class PlayerShip {
     }
     
     update() {
-        this.y = state.height - 52;
         const currentSpeed = this.empTimer > 0 ? this.speed * 0.45 : this.speed;
         
-        if (state.keys.left || state.keys.right) {
-            if (state.keys.left) this.x -= currentSpeed;
-            if (state.keys.right) this.x += currentSpeed;
+        let dx = 0;
+        let dy = 0;
+        if (state.keys.left) dx -= 1;
+        if (state.keys.right) dx += 1;
+        if (state.keys.up) dy -= 1;
+        if (state.keys.down) dy += 1;
+
+        if (dx !== 0 || dy !== 0) {
+            const length = Math.hypot(dx, dy);
+            this.x += (dx / length) * currentSpeed;
+            this.y += (dy / length) * currentSpeed;
             state.targetX = this.x;
+            state.targetY = this.y;
         } else {
             const smoothFactor = this.empTimer > 0 ? 0.12 : 0.28;
             this.x += (state.targetX - this.x) * smoothFactor;
+            this.y += (state.targetY - this.y) * smoothFactor;
         }
         
+        const minY = state.height * 0.5;
+        const maxY = state.height - 52;
+        
         this.x = Math.max(this.radius + 8, Math.min(state.width - this.radius - 8, this.x));
+        this.y = Math.max(minY, Math.min(maxY, this.y));
+        
         state.targetX = Math.max(this.radius + 8, Math.min(state.width - this.radius - 8, state.targetX));
+        state.targetY = Math.max(minY, Math.min(maxY, state.targetY));
         
         if (this.invulnerableTimer > 0) this.invulnerableTimer--;
         if (this.tripleShotTimer > 0) this.tripleShotTimer--;
