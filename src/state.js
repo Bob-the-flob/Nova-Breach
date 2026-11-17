@@ -23,9 +23,12 @@ export const state = {
     dpr: 1,
     
     // Inputs
-    keys: { left: false, right: false },
+    keys: { left: false, right: false, up: false, down: false },
     isTouching: false,
     targetX: (window.innerWidth || 800) / 2,
+    targetY: (window.innerHeight || 600) - 52,
+    lastTouchX: 0,
+    lastTouchY: 0,
     
     // Game Entities
     player: null,
