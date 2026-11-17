@@ -38,6 +38,8 @@ export const state = {
     powerups: [],
     particles: [],
     shockwaves: [],
+    warnings: [],
+    trackerQueue: [],
     
     // Progress & Stats
     score: 0,

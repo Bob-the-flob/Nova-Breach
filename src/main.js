@@ -62,6 +62,8 @@ export function returnToMainMenu() {
     state.powerups = [];
     state.particles = [];
     state.shockwaves = [];
+    state.warnings = [];
+    state.trackerQueue = [];
 
     const pauseScreen = document.getElementById('pause-screen');
     if (pauseScreen) pauseScreen.classList.add('hidden');
@@ -515,6 +517,8 @@ export function initGame() {
     state.powerups = [];
     state.particles = [];
     state.shockwaves = [];
+    state.warnings = [];
+    state.trackerQueue = [];
     state.targetX = state.width / 2;
     state.targetY = state.height - 52;
     state.keys.left = false;
@@ -555,6 +559,8 @@ export function initGame() {
 export function startWave(waveNum) {
     state.wave = waveNum;
     state.waveSpawning = true;
+    state.warnings = [];
+    state.trackerQueue = [];
     const banner = document.getElementById('wave-banner');
     if (banner) {
         banner.textContent = `VAGUE ${state.wave}`;
@@ -591,6 +597,17 @@ export function startWave(waveNum) {
             state.invaders.push(new Invader(x, y, type, state.wave));
         }
     }
+    
+    let trackerCount = 0;
+    if (state.wave >= 4) {
+        trackerCount = Math.min(3, Math.floor(state.wave / 4));
+    }
+    for (let i = 0; i < trackerCount; i++) {
+        const spawnTimer = 400 + i * 450; 
+        const spawnX = Math.random() < 0.5 ? 50 : state.width - 50;
+        state.trackerQueue.push({ timer: spawnTimer, x: spawnX, warned: false });
+    }
+
     state.waveSpawning = false;
     updateHud();
 }
@@ -646,7 +663,25 @@ function update() {
             else touchNovaBtn.classList.remove('ready');
         }
         
-        if (!state.waveSpawning && state.invaders.length === 0) {
+        for (let i = state.trackerQueue.length - 1; i >= 0; i--) {
+            const tq = state.trackerQueue[i];
+            tq.timer--;
+            if (tq.timer <= 120 && !tq.warned) {
+                tq.warned = true;
+                state.warnings.push({ x: tq.x, life: 120, maxLife: 120 });
+            }
+            if (tq.timer <= 0) {
+                state.invaders.push(new Invader(tq.x, -20, 'tracker', state.wave));
+                state.trackerQueue.splice(i, 1);
+            }
+        }
+
+        for (let i = state.warnings.length - 1; i >= 0; i--) {
+            state.warnings[i].life--;
+            if (state.warnings[i].life <= 0) state.warnings.splice(i, 1);
+        }
+        
+        if (!state.waveSpawning && state.invaders.length === 0 && state.trackerQueue.length === 0) {
             if (state.wave % 5 === 0) {
                 presentLevelUpChoices();
             } else {
@@ -859,6 +894,22 @@ function draw() {
     state.ctx.lineTo(state.width, state.height * 0.5);
     state.ctx.stroke();
     state.ctx.restore();
+
+    for (let w of state.warnings) {
+        const alpha = 0.4 + 0.6 * Math.abs(Math.sin(w.life * 0.15));
+        state.ctx.save();
+        state.ctx.globalAlpha = alpha;
+        state.ctx.fillStyle = '#ff0033';
+        state.ctx.shadowColor = '#ff0033';
+        state.ctx.shadowBlur = 15;
+        state.ctx.beginPath();
+        state.ctx.moveTo(w.x, 30);
+        state.ctx.lineTo(w.x - 14, 10);
+        state.ctx.lineTo(w.x + 14, 10);
+        state.ctx.closePath();
+        state.ctx.fill();
+        state.ctx.restore();
+    }
 
     for (let sw of state.shockwaves) sw.draw();
     for (let pt of state.particles) pt.draw();

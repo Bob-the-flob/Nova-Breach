@@ -74,6 +74,15 @@ export default class Invader {
                 this.points = 270;
                 this.healCooldown = 180;
                 break;
+            case 'tracker':
+                this.radius = 16;
+                this.maxHp = 3 + Math.floor(wave * 0.25);
+                this.speed = baseDrop * 4.2;
+                this.speedY = 0; 
+                this.angle = Math.PI / 2;
+                this.color = '#ff3300';
+                this.points = 350;
+                break;
             default:
                 this.radius = 14;
                 this.maxHp = 1 + Math.floor(wave * 0.2);
@@ -152,25 +161,44 @@ export default class Invader {
                 }
                 if (healedAny) sound.playAbility();
             }
+        } else if (this.type === 'tracker') {
+            if (state.player) {
+                const targetAngle = Math.atan2(state.player.y - this.y, state.player.x - this.x);
+                let diff = targetAngle - this.angle;
+                while (diff > Math.PI) diff -= Math.PI * 2;
+                while (diff < -Math.PI) diff += Math.PI * 2;
+                
+                this.angle += Math.sign(diff) * Math.min(Math.abs(diff), 0.035);
+                this.x += Math.cos(this.angle) * this.speed * slowFactor;
+                this.y += Math.sin(this.angle) * this.speed * slowFactor;
+                
+                if (Math.random() < 0.25) {
+                    createParticles(this.x, this.y, '#ff4400', 1);
+                }
+            } else {
+                this.y += this.speed * slowFactor;
+            }
         } else {
             this.y += effectiveSpeedY;
         }
 
-        this.wobble += this.wobbleSpeed;
-        const amp = (this.type === 'mini_drone' ? 36 : 18);
-        this.x = this.baseX + Math.sin(this.wobble) * amp;
+        if (this.type !== 'tracker') {
+            this.wobble += this.wobbleSpeed;
+            const amp = (this.type === 'mini_drone' ? 36 : 18);
+            this.x = this.baseX + Math.sin(this.wobble) * amp;
+        }
 
         const minX = this.radius + 6;
         const maxX = state.width - this.radius - 6;
         if (this.x < minX) {
             this.x = minX;
-            this.baseX = minX + amp;
+            if (this.type !== 'tracker') this.baseX = minX + (this.type === 'mini_drone' ? 36 : 18);
         } else if (this.x > maxX) {
             this.x = maxX;
-            this.baseX = maxX - amp;
+            if (this.type !== 'tracker') this.baseX = maxX - (this.type === 'mini_drone' ? 36 : 18);
         }
 
-        if (this.type !== 'mini_drone') {
+        if (this.type !== 'mini_drone' && this.type !== 'tracker') {
             this.shootCooldown--;
             if (this.shootCooldown <= 0 && this.y > 60 && this.y < state.height - 100) {
                 const aimChance = {
@@ -258,7 +286,6 @@ export default class Invader {
         } else if (this.type === 'healer') {
             const r = this.radius;
             const w = r * 0.6;
-            // Draw a full 12-point plus/cross polygon
             state.ctx.moveTo(-w / 2, -r);
             state.ctx.lineTo(w / 2, -r);
             state.ctx.lineTo(w / 2, -w / 2);
@@ -271,6 +298,14 @@ export default class Invader {
             state.ctx.lineTo(-r, w / 2);
             state.ctx.lineTo(-r, -w / 2);
             state.ctx.lineTo(-w / 2, -w / 2);
+        } else if (this.type === 'tracker') {
+            state.ctx.save();
+            state.ctx.rotate(this.angle - Math.PI / 2);
+            state.ctx.moveTo(0, this.radius * 1.2);
+            state.ctx.lineTo(-this.radius * 0.8, -this.radius);
+            state.ctx.lineTo(0, -this.radius * 0.2);
+            state.ctx.lineTo(this.radius * 0.8, -this.radius);
+            state.ctx.restore();
         } else {
             state.ctx.moveTo(0, this.radius);
             state.ctx.lineTo(-this.radius, -this.radius);
