@@ -7,7 +7,7 @@ import Invader from './entities/Invader.js';
 import PowerUp from './entities/PowerUp.js';
 import Particle from './fx/Particle.js';
 import Shockwave from './fx/Shockwave.js';
-import * as DestrierBoss from './bosses/Destrier.js';
+import { startBossFight, updateBossFight, drawBoss, startBossVictoryCutscene, updateBossVictoryCutscene } from './bosses/Destrier.js';
 
 /* ==============================================================
    INITIALISATION ET CONTRÔLES HORIZONTAUX
@@ -206,7 +206,7 @@ export function triggerNova() {
             state.boss.takeDamage(25 + state.player.damageLevel * 10);
             createParticles(state.boss.x, state.boss.y, '#ff007f', 30);
             if (state.boss.hp <= 0) {
-                DestrierBoss.startBossVictoryCutscene();
+                startBossVictoryCutscene();
             }
         }
 
@@ -582,7 +582,7 @@ export function startWave(waveNum) {
     }
 
     if (waveNum === 15) {
-        DestrierBoss.startBossFight();
+        startBossFight();
         return;
     }
 
@@ -611,11 +611,11 @@ export function startWave(waveNum) {
         }
     }
 
-    // Spawn 0, 1, 2, or 3 battery enemies starting on Wave 2
+    // Spawn 0 to 3 battery enemies starting on Wave 2
     if (state.wave >= 2) {
         const spawnBonus = state.player ? (state.player.batterySpawnBonus || 0) : 0;
         const biasedRandom = Math.min(0.999, Math.random() + spawnBonus * 0.4);
-        const batteryCount = Math.floor(biasedRandom * 4);
+        const batteryCount = Math.floor(biasedRandom * 4); // 0, 1, 2, or 3
 
         const candidateIndices = [];
         for (let idx = 0; idx < state.invaders.length; idx++) {
@@ -658,30 +658,12 @@ function update() {
     if (state.current === GameState.GAMEOVER || state.current === GameState.MENU) return;
     
     if (state.current === GameState.BOSS_FIGHT) {
-        DestrierBoss.updateBossFight();
+        updateBossFight();
         return;
     }
     
     if (state.current === GameState.BOSS_CUTSCENE) {
-        if (typeof DestrierBoss.updateBossVictoryCutscene === 'function') {
-            DestrierBoss.updateBossVictoryCutscene();
-        } else {
-            for (let i = state.shockwaves.length - 1; i >= 0; i--) {
-                const sw = state.shockwaves[i];
-                sw.update();
-                if (sw.finished) state.shockwaves.splice(i, 1);
-            }
-            state.victoryCutsceneTimer++;
-            if (state.boss && state.victoryCutsceneTimer >= 55) {
-                state.boss = null;
-                state.bossActive = false;
-                updateHearts();
-                updateHud();
-            }
-            if (state.victoryCutsceneTimer >= 180) {
-                showVictoryScreen();
-            }
-        }
+        updateBossVictoryCutscene();
         return;
     }
     if (state.current === GameState.BOSS_REWARDS) return;
@@ -978,7 +960,7 @@ function draw() {
     for (let b of state.bullets) b.draw();
     for (let eb of state.enemyBullets) eb.draw();
     for (let inv of state.invaders) inv.draw();
-    if (state.bossActive) DestrierBoss.drawBoss();
+    if (state.bossActive) drawBoss();
     
     if (state.player && (state.current === GameState.PLAYING || state.current === GameState.UPGRADING || state.current === GameState.PAUSED || state.current === GameState.BOSS_FIGHT || state.current === GameState.BOSS_CUTSCENE)) {
         state.player.draw();
