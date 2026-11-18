@@ -211,10 +211,14 @@ export function triggerNova() {
                 sound.playExplosion(inv.type === 'tank');
                 createParticles(inv.x, inv.y, inv.color, 24);
                 addScore(inv.points);
+                if (inv.type === 'battery') {
+                    state.powerups.push(new PowerUp(inv.x, inv.y, 'battery'));
+                }
                 state.invaders.splice(i, 1);
                 state.kills++;
             }
         }
+        updateHud();
     }
 }
 
@@ -597,6 +601,25 @@ export function startWave(waveNum) {
             state.invaders.push(new Invader(x, y, type, state.wave));
         }
     }
+
+    // Spawn 0 to 3 battery enemies starting on Wave 2
+    if (state.wave >= 2) {
+        const spawnBonus = state.player ? (state.player.batterySpawnBonus || 0) : 0;
+        const biasedRandom = Math.min(0.999, Math.random() + spawnBonus * 0.4);
+        const batteryCount = Math.floor(biasedRandom * 4); // 0, 1, 2, or 3
+
+        const candidateIndices = [];
+        for (let idx = 0; idx < state.invaders.length; idx++) {
+            candidateIndices.push(idx);
+        }
+        candidateIndices.sort(() => Math.random() - 0.5);
+
+        for (let b = 0; b < Math.min(batteryCount, candidateIndices.length); b++) {
+            const targetIdx = candidateIndices[b];
+            const oldInv = state.invaders[targetIdx];
+            state.invaders[targetIdx] = new Invader(oldInv.baseX, oldInv.y, 'battery', state.wave);
+        }
+    }
     
     let trackerCount = 0;
     if (state.wave >= 4) {
@@ -730,9 +753,10 @@ function update() {
             }
             if (bulletRemoved) continue;
             
-            // Player Bullet vs Powerups
+            // Player Bullet vs Powerups (Batteries ignore player bullets)
             for (let pIdx = state.powerups.length - 1; pIdx >= 0; pIdx--) {
                 const p = state.powerups[pIdx];
+                if (p.type === 'battery') continue;
                 const distP = Math.hypot(b.x - p.x, b.y - p.y);
                 if (distP < b.radius + p.radius) {
                     sound.playPowerup();
@@ -743,8 +767,6 @@ function update() {
                         state.player.rapidFireTimer = 420;
                     } else if (p.type === 'shield') {
                         state.player.shieldTimer = 550;
-                    } else if (p.type === 'nuke') {
-                        triggerNova();
                     }
                     state.powerups.splice(pIdx, 1);
                     state.bullets.splice(i, 1);
@@ -774,6 +796,7 @@ function update() {
                         sound.playExplosion(inv.type === 'tank');
                         createParticles(inv.x, inv.y, inv.color, 22);
                         addScore(inv.points);
+                        state.kills++;
                         
                         if (inv.type === 'splitter') {
                             const drone1 = new Invader(inv.x - 16, inv.y, 'mini_drone', state.wave);
@@ -782,7 +805,9 @@ function update() {
                             drone2.wobble = Math.PI;
                             state.invaders.push(drone1, drone2);
                         }
-                        if (Math.random() < 0.18) {
+                        if (inv.type === 'battery') {
+                            state.powerups.push(new PowerUp(inv.x, inv.y, 'battery'));
+                        } else if (Math.random() < 0.18) {
                             state.powerups.push(new PowerUp(inv.x, inv.y));
                         }
                         state.invaders.splice(j, 1);
@@ -833,10 +858,23 @@ function update() {
             }
         }
         
-        // Effects & Powerups update loop
+        // Effects & Powerups update loop (including physical ship pickup for batteries)
         for (let i = state.powerups.length - 1; i >= 0; i--) {
             const p = state.powerups[i];
             p.update();
+
+            if (p.type === 'battery' && state.player) {
+                const distPlayer = Math.hypot(p.x - state.player.x, p.y - state.player.y);
+                if (distPlayer < p.radius + state.player.radius) {
+                    sound.playPowerup();
+                    createParticles(p.x, p.y, '#b042ff', 22);
+                    state.player.novaCharge = Math.min(100, state.player.novaCharge + 33.34);
+                    updateHud();
+                    state.powerups.splice(i, 1);
+                    continue;
+                }
+            }
+
             if (p.life <= 0 || p.y > state.height + 30) state.powerups.splice(i, 1);
         }
         for (let i = state.particles.length - 1; i >= 0; i--) {
