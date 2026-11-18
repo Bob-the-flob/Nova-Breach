@@ -17,12 +17,15 @@ export default class Invader {
         
         switch (this.type) {
             case 'battery':
-                this.radius = 20;
-                this.maxHp = 1 + Math.floor(wave * 0.2);
-                this.speedY = baseDrop;
+                this.radius = 23;
+                this.maxHp = 4 + Math.floor(wave * 0.35);
+                this.speedY = baseDrop * 0.65;
                 this.color = '#d580ff';
-                this.points = 180;
+                this.points = 320;
                 this.pulse = Math.random() * Math.PI * 2;
+                this.shieldActive = false;
+                this.shieldCooldown = 220;
+                this.shieldDuration = 0;
                 break;
             case 'dart':
                 this.radius = 12;
@@ -110,10 +113,7 @@ export default class Invader {
         const slowFactor = state.player ? (1 - state.player.slowAura) : 1;
         const effectiveSpeedY = this.speedY * slowFactor;
 
-        if (this.type === 'battery') {
-            this.y += effectiveSpeedY;
-            this.pulse += 0.1;
-        } else if (this.type === 'dart') {
+        if (this.type === 'dart') {
             if (this.isDashing) {
                 this.y += effectiveSpeedY * 3.0;
                 this.dashDuration--;
@@ -130,8 +130,11 @@ export default class Invader {
                     createParticles(this.x, this.y, '#00ffea', 8);
                 }
             }
-        } else if (this.type === 'tank') {
+        } else if (this.type === 'tank' || this.type === 'battery') {
             this.y += effectiveSpeedY;
+            if (this.type === 'battery') {
+                this.pulse += 0.1;
+            }
             if (this.shieldActive) {
                 this.shieldDuration--;
                 if (this.shieldDuration <= 0) {
@@ -271,7 +274,7 @@ export default class Invader {
         state.ctx.fillStyle = 'rgba(15, 8, 28, 0.85)';
         state.ctx.lineWidth = 2.2;
         
-        if (this.type === 'tank' && this.shieldActive) {
+        if ((this.type === 'tank' || this.type === 'battery') && this.shieldActive) {
             state.ctx.save();
             state.ctx.strokeStyle = '#00f0ff';
             state.ctx.lineWidth = 3;
