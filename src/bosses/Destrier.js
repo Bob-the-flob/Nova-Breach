@@ -30,14 +30,14 @@ function pointNearSegment(px, py, ax, ay, bx, by, radius) {
 // --- Boss Data ---
 const DESTRIER_PROJECT = {
     shapes: [
-       { type: 'circle', cx: 256, cy: 256, r: 121, color: '#ff007f', stroke: 2 },
-       { type: 'poly', pts: [[160,192],[160,320],[0,320],[0,192]], color: '#ff007f', stroke: 2 },
-       { type: 'poly', pts: [[352,192],[352,320],[512,320],[512,192]], color: '#ff007f', stroke: 2 },
-       { type: 'poly', pts: [[320,336],[352,336],[352,384],[320,384]], color: '#ff2a2a', stroke: 2 },
-       { type: 'poly', pts: [[192,336],[160,336],[160,384],[192,384]], color: '#ff2a2a', stroke: 2 },
-       { type: 'poly', pts: [[32,320],[64,320],[64,352],[32,352]], color: '#ff2a2a', stroke: 2 },
-       { type: 'poly', pts: [[480,320],[448,320],[448,352],[480,352]], color: '#ff2a2a', stroke: 2 },
-       { type: 'circle', cx: 256, cy: 256, r: 24, color: '#00ff66', stroke: 2 }
+       { type: 'circle', cx: 256, cy: 256, r: 121, color: '#ff007f', stroke: 2, part: 'core' },
+       { type: 'poly', pts: [[160,192],[160,320],[0,320],[0,192]], color: '#ff007f', stroke: 2, part: 'left' },
+       { type: 'poly', pts: [[352,192],[352,320],[512,320],[512,192]], color: '#ff007f', stroke: 2, part: 'right' },
+       { type: 'poly', pts: [[320,336],[352,336],[352,384],[320,384]], color: '#ff2a2a', stroke: 2, part: 'right' },
+       { type: 'poly', pts: [[192,336],[160,336],[160,384],[192,384]], color: '#ff2a2a', stroke: 2, part: 'left' },
+       { type: 'poly', pts: [[32,320],[64,320],[64,352],[32,352]], color: '#ff2a2a', stroke: 2, part: 'left' },
+       { type: 'poly', pts: [[480,320],[448,320],[448,352],[480,352]], color: '#ff2a2a', stroke: 2, part: 'right' },
+       { type: 'circle', cx: 256, cy: 256, r: 24, color: '#00ff66', stroke: 2, part: 'core' }
     ],
     hitbox: [
        [0,320],[32,320],[32,352],[64,352],[64,320],[160,320],[160,384],[192,384],
@@ -66,6 +66,8 @@ class Destrier extends Boss {
             { x: state.width * 0.35, y: state.height * 0.5, radius: 18, phase: 0 },
             { x: state.width * 0.65, y: state.height * 0.5, radius: 18, phase: Math.PI }
         ];
+        this.coreExploded = false;
+        this.detachedPieces = [];
     }
 
     localPoint(localX, localY) {
@@ -123,7 +125,6 @@ export function startBossFight() {
     state.enemyBullets = [];
     state.bullets = [];
     state.powerups = [];
-    state.player.novaCharge = 0;
     updateHearts();
     updateHud();
     
@@ -140,7 +141,6 @@ export function updateBossFight() {
     if (!boss || !state.player) return;
 
     state.player.update();
-    state.player.novaCharge = (1 - boss.hp / boss.maxHp) * 100;
 
     const phaseTwo = boss.hp < boss.maxHp * 0.5;
 
@@ -273,111 +273,17 @@ export function updateBossFight() {
         }
     }
 
-    // Update particles
+    // Update particles and shockwaves
     for (let i = state.particles.length - 1; i >= 0; i--) {
         const pt = state.particles[i];
         pt.update();
         if (pt.life <= 0) state.particles.splice(i, 1);
     }
-}
-
-export function drawBoss() {
-    const boss = state.boss;
-    if (!boss || !state.bossActive) return;
-    
-    const scale = Math.max(0.42, Math.min(0.52, (state.width - 80) / 512));
-
-    if (boss.laserWarning > 0) {
-        state.ctx.save();
-        state.ctx.strokeStyle = 'rgba(255, 42, 42, 0.28)';
-        state.ctx.setLineDash([8, 10]);
-        state.ctx.lineWidth = 3;
-        for (let i = 0; i < boss.lasers.length; i++) {
-            const laser = boss.lasers[i];
-            state.ctx.beginPath();
-            state.ctx.moveTo(laser.x1, laser.y1);
-            state.ctx.lineTo(laser.x2, laser.y2);
-            state.ctx.stroke();
-        }
-        state.ctx.restore();
+    for (let i = state.shockwaves.length - 1; i >= 0; i--) {
+        const sw = state.shockwaves[i];
+        sw.update();
+        if (sw.finished) state.shockwaves.splice(i, 1);
     }
-
-    if (boss.laserActive > 0) {
-        state.ctx.save();
-        state.ctx.strokeStyle = '#ff0033';
-        state.ctx.shadowColor = '#ff0033';
-        state.ctx.shadowBlur = 18;
-        state.ctx.lineWidth = 2;
-        for (let i = 0; i < boss.lasers.length; i++) {
-            const laser = boss.lasers[i];
-            state.ctx.beginPath();
-            state.ctx.moveTo(laser.x1, laser.y1);
-            state.ctx.lineTo(laser.x2, laser.y2);
-            state.ctx.stroke();
-        }
-        state.ctx.restore();
-    }
-
-    for (let i = 0; i < boss.shields.length; i++) {
-        const shield = boss.shields[i];
-        state.ctx.save();
-        state.ctx.translate(shield.x, shield.y);
-        state.ctx.fillStyle = 'rgba(7, 15, 30, 0.95)';
-        state.ctx.strokeStyle = '#8ffcff';
-        state.ctx.shadowColor = '#00f0ff';
-        state.ctx.shadowBlur = 18;
-        state.ctx.lineWidth = 2.5;
-        state.ctx.beginPath();
-        state.ctx.moveTo(-24, 0);
-        state.ctx.lineTo(-12, -12);
-        state.ctx.lineTo(12, -12);
-        state.ctx.lineTo(24, 0);
-        state.ctx.lineTo(12, 12);
-        state.ctx.lineTo(-12, 12);
-        state.ctx.closePath();
-        state.ctx.fill();
-        state.ctx.stroke();
-        state.ctx.restore();
-    }
-
-    state.ctx.save();
-    state.ctx.translate(boss.x, boss.y);
-    state.ctx.scale(scale, scale);
-    state.ctx.translate(-DESTRIER_PROJECT.pivot.x, -DESTRIER_PROJECT.pivot.y);
-
-    for (let i = 0; i < DESTRIER_PROJECT.shapes.length; i++) {
-        const shape = DESTRIER_PROJECT.shapes[i];
-        state.ctx.beginPath();
-        state.ctx.strokeStyle = shape.color;
-        state.ctx.fillStyle = shape.type === 'circle'
-            ? (shape.r === 24 ? 'rgba(0,255,102,0.9)' : 'rgba(30,5,25,0.92)')
-            : 'rgba(30,5,25,0.92)';
-        state.ctx.shadowColor = shape.color;
-        state.ctx.shadowBlur = shape.r === 24 ? 18 : 12;
-        
-        if (shape.type === 'circle') {
-            state.ctx.arc(shape.cx, shape.cy, shape.r, 0, Math.PI * 2);
-        } else {
-            shape.pts.forEach((pt, idx) => {
-                if (idx === 0) state.ctx.moveTo(pt[0], pt[1]);
-                else state.ctx.lineTo(pt[0], pt[1]);
-            });
-            state.ctx.closePath();
-        }
-        state.ctx.fill();
-        state.ctx.stroke();
-    }
-
-    if (boss.laserActive > 0) {
-        state.ctx.beginPath();
-        state.ctx.strokeStyle = '#ffffff';
-        state.ctx.lineWidth = 3;
-        state.ctx.shadowColor = '#00ff66';
-        state.ctx.shadowBlur = 20;
-        state.ctx.arc(256, 256, 34, 0, Math.PI * 2);
-        state.ctx.stroke();
-    }
-    state.ctx.restore();
 }
 
 export function startBossVictoryCutscene() {
@@ -390,20 +296,271 @@ export function startBossVictoryCutscene() {
     boss.lasers = [];
     boss.laserWarning = 0;
     boss.laserActive = 0;
+    boss.shields = [];
+    boss.coreExploded = false;
+    boss.detachedPieces = [];
 
     state.current = GameState.BOSS_CUTSCENE;
     state.victoryCutsceneTimer = 0;
-    state.player.novaCharge = 100;
     state.enemyBullets = [];
     state.bullets = [];
 
-    sound.playNova();
-    triggerShake(20);
-    state.shockwaves.push(new Shockwave(state.player.x, state.player.y, Math.max(state.width, state.height)));
+    updateHud();
+
+    sound.playExplosion(true);
+    triggerShake(16);
+    createParticles(boss.x, boss.y, '#00ff66', 25);
+    createParticles(boss.x, boss.y, '#ff007f', 30);
 
     const banner = document.getElementById('wave-banner');
     if (banner) {
-        banner.textContent = 'NOVA — VICTOIRE';
+        banner.textContent = 'DESTRIER ANÉANTI';
         banner.classList.add('active');
+        setTimeout(() => banner.classList.remove('active'), 2400);
+    }
+}
+
+export function updateBossVictoryCutscene() {
+    const boss = state.boss;
+    if (!boss) return true;
+
+    state.victoryCutsceneTimer++;
+
+    // Allow player movement without firing or taking damage
+    if (state.player) {
+        state.player.fireTimer = 0;
+        state.player.invulnerableTimer = 10;
+        state.player.update();
+        state.bullets = [];
+    }
+
+    for (let i = state.shockwaves.length - 1; i >= 0; i--) {
+        const sw = state.shockwaves[i];
+        sw.update();
+        if (sw.finished) state.shockwaves.splice(i, 1);
+    }
+    for (let i = state.particles.length - 1; i >= 0; i--) {
+        const pt = state.particles[i];
+        pt.update();
+        if (pt.life <= 0) state.particles.splice(i, 1);
+    }
+
+    // Phase 1 (frames 1 - 54): Core destabilizes and explodes repeatedly
+    if (state.victoryCutsceneTimer < 55) {
+        if (state.victoryCutsceneTimer % 8 === 0) {
+            const rx = boss.x + (Math.random() - 0.5) * 70;
+            const ry = boss.y + (Math.random() - 0.5) * 70;
+            sound.playExplosion(false);
+            triggerShake(9);
+            createParticles(rx, ry, '#00ff66', 16);
+            createParticles(rx, ry, '#ff007f', 18);
+        }
+        return false;
+    }
+
+    // Frame 55: Final core detonation & side wing detachment
+    if (!boss.coreExploded) {
+        boss.coreExploded = true;
+        sound.playExplosion(true);
+        sound.playNova();
+        triggerShake(26);
+        state.shockwaves.push(new Shockwave(boss.x, boss.y, Math.max(state.width, state.height) * 0.9));
+        createParticles(boss.x, boss.y, '#00ff66', 45);
+        createParticles(boss.x, boss.y, '#ff007f', 55);
+        createParticles(boss.x, boss.y, '#ffffff', 30);
+
+        const leftPivot = boss.localPoint(96, 272);
+        const rightPivot = boss.localPoint(416, 272);
+
+        boss.detachedPieces = [
+            {
+                part: 'left',
+                localPivotX: 96,
+                localPivotY: 272,
+                x: leftPivot.x,
+                y: leftPivot.y,
+                vx: -1.4,
+                vy: 1.2,
+                gravity: 0.14,
+                angle: 0,
+                vAngle: -0.008,
+                maxAngle: -0.42
+            },
+            {
+                part: 'right',
+                localPivotX: 416,
+                localPivotY: 272,
+                x: rightPivot.x,
+                y: rightPivot.y,
+                vx: 1.4,
+                vy: 1.2,
+                gravity: 0.14,
+                angle: 0,
+                vAngle: 0.008,
+                maxAngle: 0.42
+            }
+        ];
+    }
+
+    // Phase 2: Detached side parts fall down the screen, rotated slightly
+    let allOffScreen = true;
+    for (let piece of boss.detachedPieces) {
+        piece.x += piece.vx;
+        piece.vy += piece.gravity;
+        piece.y += piece.vy;
+
+        if (Math.abs(piece.angle) < Math.abs(piece.maxAngle)) {
+            piece.angle += piece.vAngle;
+        }
+
+        if (Math.random() < 0.35) {
+            createParticles(
+                piece.x + (Math.random() - 0.5) * 30,
+                piece.y - 10,
+                Math.random() < 0.5 ? '#ff007f' : '#ff2a2a',
+                2
+            );
+        }
+
+        if (piece.y < state.height + 140) {
+            allOffScreen = false;
+        }
+    }
+
+    return allOffScreen && state.shockwaves.length === 0;
+}
+
+export function drawBoss() {
+    const boss = state.boss;
+    if (!boss || !state.bossActive) return;
+    
+    const scale = Math.max(0.42, Math.min(0.52, (state.width - 80) / 512));
+
+    if (!boss.defeated) {
+        if (boss.laserWarning > 0) {
+            state.ctx.save();
+            state.ctx.strokeStyle = 'rgba(255, 42, 42, 0.28)';
+            state.ctx.setLineDash([8, 10]);
+            state.ctx.lineWidth = 3;
+            for (let i = 0; i < boss.lasers.length; i++) {
+                const laser = boss.lasers[i];
+                state.ctx.beginPath();
+                state.ctx.moveTo(laser.x1, laser.y1);
+                state.ctx.lineTo(laser.x2, laser.y2);
+                state.ctx.stroke();
+            }
+            state.ctx.restore();
+        }
+
+        if (boss.laserActive > 0) {
+            state.ctx.save();
+            state.ctx.strokeStyle = '#ff0033';
+            state.ctx.shadowColor = '#ff0033';
+            state.ctx.shadowBlur = 18;
+            state.ctx.lineWidth = 2;
+            for (let i = 0; i < boss.lasers.length; i++) {
+                const laser = boss.lasers[i];
+                state.ctx.beginPath();
+                state.ctx.moveTo(laser.x1, laser.y1);
+                state.ctx.lineTo(laser.x2, laser.y2);
+                state.ctx.stroke();
+            }
+            state.ctx.restore();
+        }
+
+        for (let i = 0; i < boss.shields.length; i++) {
+            const shield = boss.shields[i];
+            state.ctx.save();
+            state.ctx.translate(shield.x, shield.y);
+            state.ctx.fillStyle = 'rgba(7, 15, 30, 0.95)';
+            state.ctx.strokeStyle = '#8ffcff';
+            state.ctx.shadowColor = '#00f0ff';
+            state.ctx.shadowBlur = 18;
+            state.ctx.lineWidth = 2.5;
+            state.ctx.beginPath();
+            state.ctx.moveTo(-24, 0);
+            state.ctx.lineTo(-12, -12);
+            state.ctx.lineTo(12, -12);
+            state.ctx.lineTo(24, 0);
+            state.ctx.lineTo(12, 12);
+            state.ctx.lineTo(-12, 12);
+            state.ctx.closePath();
+            state.ctx.fill();
+            state.ctx.stroke();
+            state.ctx.restore();
+        }
+    }
+
+    // If core hasn't exploded yet, draw full boss (with jitter during cutscene)
+    if (!boss.coreExploded) {
+        state.ctx.save();
+        const jitterX = boss.defeated ? (Math.random() - 0.5) * 10 : 0;
+        const jitterY = boss.defeated ? (Math.random() - 0.5) * 10 : 0;
+        state.ctx.translate(boss.x + jitterX, boss.y + jitterY);
+        state.ctx.scale(scale, scale);
+        state.ctx.translate(-DESTRIER_PROJECT.pivot.x, -DESTRIER_PROJECT.pivot.y);
+
+        for (let i = 0; i < DESTRIER_PROJECT.shapes.length; i++) {
+            const shape = DESTRIER_PROJECT.shapes[i];
+            state.ctx.beginPath();
+            state.ctx.strokeStyle = shape.color;
+            state.ctx.fillStyle = shape.type === 'circle'
+                ? (shape.r === 24 ? 'rgba(0,255,102,0.9)' : 'rgba(30,5,25,0.92)')
+                : 'rgba(30,5,25,0.92)';
+            state.ctx.shadowColor = shape.color;
+            state.ctx.shadowBlur = shape.r === 24 ? 18 : 12;
+            
+            if (shape.type === 'circle') {
+                state.ctx.arc(shape.cx, shape.cy, shape.r, 0, Math.PI * 2);
+            } else {
+                shape.pts.forEach((pt, idx) => {
+                    if (idx === 0) state.ctx.moveTo(pt[0], pt[1]);
+                    else state.ctx.lineTo(pt[0], pt[1]);
+                });
+                state.ctx.closePath();
+            }
+            state.ctx.fill();
+            state.ctx.stroke();
+        }
+
+        if (boss.laserActive > 0 && !boss.defeated) {
+            state.ctx.beginPath();
+            state.ctx.strokeStyle = '#ffffff';
+            state.ctx.lineWidth = 3;
+            state.ctx.shadowColor = '#00ff66';
+            state.ctx.shadowBlur = 20;
+            state.ctx.arc(256, 256, 34, 0, Math.PI * 2);
+            state.ctx.stroke();
+        }
+        state.ctx.restore();
+    } else {
+        // Core has exploded: draw only the detached falling side parts
+        for (let piece of boss.detachedPieces) {
+            state.ctx.save();
+            state.ctx.translate(piece.x, piece.y);
+            state.ctx.rotate(piece.angle);
+            state.ctx.scale(scale, scale);
+            state.ctx.translate(-piece.localPivotX, -piece.localPivotY);
+
+            for (let i = 0; i < DESTRIER_PROJECT.shapes.length; i++) {
+                const shape = DESTRIER_PROJECT.shapes[i];
+                if (shape.part !== piece.part) continue;
+
+                state.ctx.beginPath();
+                state.ctx.strokeStyle = shape.color;
+                state.ctx.fillStyle = 'rgba(30,5,25,0.92)';
+                state.ctx.shadowColor = shape.color;
+                state.ctx.shadowBlur = 10;
+
+                shape.pts.forEach((pt, idx) => {
+                    if (idx === 0) state.ctx.moveTo(pt[0], pt[1]);
+                    else state.ctx.lineTo(pt[0], pt[1]);
+                });
+                state.ctx.closePath();
+                state.ctx.fill();
+                state.ctx.stroke();
+            }
+            state.ctx.restore();
+        }
     }
 }

@@ -7,7 +7,7 @@ import Invader from './entities/Invader.js';
 import PowerUp from './entities/PowerUp.js';
 import Particle from './fx/Particle.js';
 import Shockwave from './fx/Shockwave.js';
-import { startBossFight, updateBossFight, drawBoss, startBossVictoryCutscene } from './bosses/Destrier.js';
+import { startBossFight, updateBossFight, drawBoss, startBossVictoryCutscene, updateBossVictoryCutscene } from './bosses/Destrier.js';
 
 /* ==============================================================
    INITIALISATION ET CONTRÔLES HORIZONTAUX
@@ -150,13 +150,13 @@ if (touchNovaBtn) {
     touchNovaBtn.addEventListener('touchstart', (e) => {
         e.preventDefault();
         sound.init();
-        if ((state.current === GameState.PLAYING || state.current === GameState.BOSS_FIGHT) && !state.bossActive) {
+        if (state.current === GameState.PLAYING || state.current === GameState.BOSS_FIGHT) {
             triggerNova();
         }
     }, { passive: false });
     touchNovaBtn.addEventListener('click', () => {
         sound.init();
-        if ((state.current === GameState.PLAYING || state.current === GameState.BOSS_FIGHT) && !state.bossActive) {
+        if (state.current === GameState.PLAYING || state.current === GameState.BOSS_FIGHT) {
             triggerNova();
         }
     });
@@ -191,8 +191,6 @@ export function createParticles(x, y, color, count = 20) {
 }
 
 export function triggerNova() {
-    if (state.current === GameState.BOSS_FIGHT && state.boss) return;
-    
     if (state.player && state.player.novaCharge >= 98) {
         state.player.novaCharge = 0;
         sound.playNova();
@@ -203,6 +201,18 @@ export function triggerNova() {
             createParticles(eb.x, eb.y, '#ff0055', 6);
         }
         state.enemyBullets = [];
+        
+        if (state.current === GameState.BOSS_FIGHT && state.boss && !state.boss.defeated) {
+            const burstDamage = state.boss.maxHp / 5;
+            state.boss.takeDamage(burstDamage);
+            createParticles(state.boss.x, state.boss.y, '#ff00bb', 32);
+            updateHearts();
+            updateHud();
+            if (state.boss.hp <= 0) {
+                startBossVictoryCutscene();
+            }
+            return;
+        }
         
         for (let i = state.invaders.length - 1; i >= 0; i--) {
             const inv = state.invaders[i];
@@ -238,6 +248,8 @@ const hudWave = document.getElementById('hud-wave');
 const hudNovaFill = document.getElementById('hud-nova-fill');
 const hudHearts = document.getElementById('hud-hearts');
 const hudStatus = document.getElementById('hud-status');
+const bossHealthEl = document.getElementById('boss-health');
+const bossHealthFillEl = document.getElementById('boss-health-fill');
 
 export function updateHud() {
     if (hudScore) hudScore.textContent = state.score.toLocaleString();
@@ -250,22 +262,23 @@ export function updateHud() {
         else hudStatus.classList.add('hidden');
     }
     if (hudNovaFill) {
-        if (state.bossActive && state.boss) {
-            hudNovaFill.style.width = `${Math.max(0, Math.min(100, (1 - state.boss.hp / state.boss.maxHp) * 100))}%`;
-        } else {
-            hudNovaFill.style.width = `${state.player ? state.player.novaCharge : 0}%`;
-        }
+        hudNovaFill.style.width = `${state.player ? state.player.novaCharge : 0}%`;
     }
     if (touchNovaBtn) {
-        if (state.bossActive) {
-            touchNovaBtn.classList.add('boss-disabled');
-            touchNovaBtn.classList.remove('ready');
-        } else if (state.player && state.player.novaCharge >= 98) {
+        touchNovaBtn.classList.remove('boss-disabled');
+        if (state.player && state.player.novaCharge >= 98) {
             touchNovaBtn.classList.add('ready');
-            touchNovaBtn.classList.remove('boss-disabled');
         } else {
             touchNovaBtn.classList.remove('ready');
-            touchNovaBtn.classList.remove('boss-disabled');
+        }
+    }
+    if (bossHealthEl && bossHealthFillEl) {
+        if (state.bossActive && state.boss && !state.boss.defeated) {
+            bossHealthEl.classList.remove('hidden');
+            const pct = Math.max(0, Math.min(100, (state.boss.hp / state.boss.maxHp) * 100));
+            bossHealthFillEl.style.width = `${pct}%`;
+        } else {
+            bossHealthEl.classList.add('hidden');
         }
     }
 }
@@ -553,6 +566,7 @@ export function initGame() {
     document.getElementById('gameover-screen')?.classList.add('hidden');
     document.getElementById('pause-screen')?.classList.add('hidden');
     document.getElementById('settings-screen')?.classList.add('hidden');
+    document.getElementById('boss-health')?.classList.add('hidden');
     
     const pauseBtn = document.getElementById('pause-btn');
     if (pauseBtn) pauseBtn.textContent = 'PAUSE';
@@ -654,19 +668,12 @@ function update() {
     }
     
     if (state.current === GameState.BOSS_CUTSCENE) {
-        for (let i = state.shockwaves.length - 1; i >= 0; i--) {
-            const sw = state.shockwaves[i];
-            sw.update();
-            if (sw.finished) state.shockwaves.splice(i, 1);
-        }
-        state.victoryCutsceneTimer++;
-        if (state.boss && state.victoryCutsceneTimer >= 55) {
+        const finished = updateBossVictoryCutscene();
+        if (finished) {
             state.boss = null;
             state.bossActive = false;
             updateHearts();
             updateHud();
-        }
-        if (state.victoryCutsceneTimer >= 180) {
             showVictoryScreen();
         }
         return;

@@ -465,10 +465,16 @@ canvas {
 }
 .boss-health {
     position: absolute;
-    top: 110px;
+    top: clamp(92px, 13vh, 118px);
     left: 50%;
     transform: translateX(-50%);
-    width: min(520px, 72vw);
+    width: clamp(220px, 64vw, 480px);
+    max-width: calc(100vw - 28px);
+    padding: 4px 10px;
+    background: rgba(8, 12, 26, 0.65);
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(255, 0, 127, 0.35);
+    border-radius: 10px;
     z-index: 11;
     text-align: center;
     pointer-events: none;
@@ -478,15 +484,18 @@ canvas {
 }
 .boss-health-text {
     color: #ff7ab9;
-    font-size: 13px;
+    font-size: clamp(10px, 1.8vw, 12px);
     font-weight: 900;
     letter-spacing: 1.5px;
-    text-shadow: 0 0 12px #ff007f;
+    text-shadow: 0 0 10px #ff007f;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 .boss-health-track {
-    margin-top: 6px;
+    margin-top: 4px;
     width: 100%;
-    height: 12px;
+    height: 9px;
     border-radius: 999px;
     border: 1px solid rgba(255, 0, 127, 0.85);
     overflow: hidden;
@@ -498,6 +507,7 @@ canvas {
     height: 100%;
     background: linear-gradient(90deg, #ff0055, #ff70b8);
     box-shadow: 0 0 12px #ff007f;
+    transition: width 0.12s linear;
 }
 .victory-title {
     color: #ffea00;
@@ -518,7 +528,16 @@ canvas {
 }
 @media (max-width: 600px) {
     .boss-health {
-        top: 128px;
-        width: 80vw;
+        top: clamp(102px, 15vh, 126px);
+        width: min(86vw, 360px);
+    }
+}
+@media (max-height: 540px) {
+    .boss-health {
+        top: 86px;
+        padding: 3px 8px;
+    }
+    .boss-health-track {
+        height: 7px;
     }
 }
