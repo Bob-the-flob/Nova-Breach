@@ -16,6 +16,14 @@ export default class Invader {
         const baseDrop = 0.42 + Math.min(wave * 0.025, 0.65);
         
         switch (this.type) {
+            case 'battery':
+                this.radius = 20;
+                this.maxHp = 1 + Math.floor(wave * 0.2);
+                this.speedY = baseDrop;
+                this.color = '#d580ff';
+                this.points = 180;
+                this.pulse = Math.random() * Math.PI * 2;
+                break;
             case 'dart':
                 this.radius = 12;
                 this.maxHp = 1 + Math.floor(wave * 0.15);
@@ -102,7 +110,10 @@ export default class Invader {
         const slowFactor = state.player ? (1 - state.player.slowAura) : 1;
         const effectiveSpeedY = this.speedY * slowFactor;
 
-        if (this.type === 'dart') {
+        if (this.type === 'battery') {
+            this.y += effectiveSpeedY;
+            this.pulse += 0.1;
+        } else if (this.type === 'dart') {
             if (this.isDashing) {
                 this.y += effectiveSpeedY * 3.0;
                 this.dashDuration--;
@@ -226,7 +237,7 @@ export default class Invader {
             if (this.type !== 'tracker') this.baseX = maxX - (this.type === 'mini_drone' ? 36 : 18);
         }
 
-        if (this.type !== 'mini_drone' && this.type !== 'tracker') {
+        if (this.type !== 'mini_drone' && this.type !== 'tracker' && this.type !== 'battery') {
             this.shootCooldown--;
             if (this.shootCooldown <= 0 && this.y > 60 && this.y < state.height - 100) {
                 const aimChance = {
@@ -278,71 +289,109 @@ export default class Invader {
             state.ctx.stroke();
             state.ctx.restore();
         }
-        
-        state.ctx.beginPath();
-        if (this.type === 'dart') {
-            state.ctx.moveTo(0, this.radius * 1.3);
-            state.ctx.lineTo(-this.radius * 0.7, -this.radius);
-            state.ctx.lineTo(0, -this.radius * 0.3);
-            state.ctx.lineTo(this.radius * 0.7, -this.radius);
-        } else if (this.type === 'tank') {
+
+        if (this.type === 'battery') {
             const r = this.radius;
-            state.ctx.rect(-r, -r * 0.8, r * 2, r * 1.6);
-        } else if (this.type === 'splitter') {
-            state.ctx.moveTo(0, this.radius);
-            state.ctx.lineTo(this.radius, 0);
-            state.ctx.lineTo(0, -this.radius);
-            state.ctx.lineTo(-this.radius, 0);
-        } else if (this.type === 'mini_drone') {
-            state.ctx.moveTo(0, this.radius);
-            state.ctx.lineTo(-this.radius, -this.radius * 0.8);
-            state.ctx.lineTo(this.radius, -this.radius * 0.8);
-        } else if (this.type === 'disruptor') {
-            const r = this.radius;
-            state.ctx.moveTo(-r * 0.5, -r);
-            state.ctx.lineTo(r * 0.5, -r);
-            state.ctx.lineTo(r, -r * 0.3);
-            state.ctx.lineTo(r * 0.5, r);
-            state.ctx.lineTo(-r * 0.5, r);
-            state.ctx.lineTo(-r, -r * 0.3);
-        } else if (this.type === 'phantom') {
-            const r = this.radius;
-            state.ctx.arc(0, -r * 0.2, r * 0.8, Math.PI, 0, false);
-            state.ctx.lineTo(r * 0.8, r);
-            state.ctx.lineTo(0, r * 0.5);
-            state.ctx.lineTo(-r * 0.8, r);
-        } else if (this.type === 'healer') {
-            const r = this.radius;
-            const w = r * 0.6;
-            state.ctx.moveTo(-w / 2, -r);
-            state.ctx.lineTo(w / 2, -r);
-            state.ctx.lineTo(w / 2, -w / 2);
-            state.ctx.lineTo(r, -w / 2);
-            state.ctx.lineTo(r, w / 2);
-            state.ctx.lineTo(w / 2, w / 2);
-            state.ctx.lineTo(w / 2, r);
-            state.ctx.lineTo(-w / 2, r);
-            state.ctx.lineTo(-w / 2, w / 2);
-            state.ctx.lineTo(-r, w / 2);
-            state.ctx.lineTo(-r, -w / 2);
-            state.ctx.lineTo(-w / 2, -w / 2);
-        } else if (this.type === 'tracker') {
+
+            // Upper hull and two splitting arms
+            state.ctx.shadowColor = '#d580ff';
+            state.ctx.shadowBlur = 12;
+            state.ctx.beginPath();
+            state.ctx.moveTo(0, -r);
+            state.ctx.lineTo(r * 0.85, -r * 0.35);
+            state.ctx.lineTo(r * 0.9, r * 0.85);
+            state.ctx.lineTo(r * 0.55, r * 0.95);
+            state.ctx.lineTo(r * 0.55, -r * 0.05);
+            state.ctx.lineTo(0, -r * 0.25);
+            state.ctx.lineTo(-r * 0.55, -r * 0.05);
+            state.ctx.lineTo(-r * 0.55, r * 0.95);
+            state.ctx.lineTo(-r * 0.9, r * 0.85);
+            state.ctx.lineTo(-r * 0.85, -r * 0.35);
+            state.ctx.closePath();
+            state.ctx.fill();
+            state.ctx.stroke();
+
+            // Pulsing purple rectangle held between the two arms
+            const pulseScale = 1 + Math.sin(this.pulse) * 0.14;
             state.ctx.save();
-            state.ctx.rotate(this.angle - Math.PI / 2);
-            state.ctx.moveTo(0, this.radius * 1.2);
-            state.ctx.lineTo(-this.radius * 0.8, -this.radius);
-            state.ctx.lineTo(0, -this.radius * 0.2);
-            state.ctx.lineTo(this.radius * 0.8, -this.radius);
+            state.ctx.translate(0, r * 0.38);
+            state.ctx.scale(pulseScale, pulseScale);
+            state.ctx.fillStyle = '#b042ff';
+            state.ctx.strokeStyle = '#ffffff';
+            state.ctx.shadowColor = '#e066ff';
+            state.ctx.shadowBlur = 18;
+            state.ctx.lineWidth = 1.6;
+            state.ctx.beginPath();
+            state.ctx.rect(-r * 0.36, -r * 0.45, r * 0.72, r * 0.9);
+            state.ctx.fill();
+            state.ctx.stroke();
             state.ctx.restore();
         } else {
-            state.ctx.moveTo(0, this.radius);
-            state.ctx.lineTo(-this.radius, -this.radius);
-            state.ctx.lineTo(0, -this.radius * 0.4);
-            state.ctx.lineTo(this.radius, -this.radius);
+            state.ctx.beginPath();
+            if (this.type === 'dart') {
+                state.ctx.moveTo(0, this.radius * 1.3);
+                state.ctx.lineTo(-this.radius * 0.7, -this.radius);
+                state.ctx.lineTo(0, -this.radius * 0.3);
+                state.ctx.lineTo(this.radius * 0.7, -this.radius);
+            } else if (this.type === 'tank') {
+                const r = this.radius;
+                state.ctx.rect(-r, -r * 0.8, r * 2, r * 1.6);
+            } else if (this.type === 'splitter') {
+                state.ctx.moveTo(0, this.radius);
+                state.ctx.lineTo(this.radius, 0);
+                state.ctx.lineTo(0, -this.radius);
+                state.ctx.lineTo(-this.radius, 0);
+            } else if (this.type === 'mini_drone') {
+                state.ctx.moveTo(0, this.radius);
+                state.ctx.lineTo(-this.radius, -this.radius * 0.8);
+                state.ctx.lineTo(this.radius, -this.radius * 0.8);
+            } else if (this.type === 'disruptor') {
+                const r = this.radius;
+                state.ctx.moveTo(-r * 0.5, -r);
+                state.ctx.lineTo(r * 0.5, -r);
+                state.ctx.lineTo(r, -r * 0.3);
+                state.ctx.lineTo(r * 0.5, r);
+                state.ctx.lineTo(-r * 0.5, r);
+                state.ctx.lineTo(-r, -r * 0.3);
+            } else if (this.type === 'phantom') {
+                const r = this.radius;
+                state.ctx.arc(0, -r * 0.2, r * 0.8, Math.PI, 0, false);
+                state.ctx.lineTo(r * 0.8, r);
+                state.ctx.lineTo(0, r * 0.5);
+                state.ctx.lineTo(-r * 0.8, r);
+            } else if (this.type === 'healer') {
+                const r = this.radius;
+                const w = r * 0.6;
+                state.ctx.moveTo(-w / 2, -r);
+                state.ctx.lineTo(w / 2, -r);
+                state.ctx.lineTo(w / 2, -w / 2);
+                state.ctx.lineTo(r, -w / 2);
+                state.ctx.lineTo(r, w / 2);
+                state.ctx.lineTo(w / 2, w / 2);
+                state.ctx.lineTo(w / 2, r);
+                state.ctx.lineTo(-w / 2, r);
+                state.ctx.lineTo(-w / 2, w / 2);
+                state.ctx.lineTo(-r, w / 2);
+                state.ctx.lineTo(-r, -w / 2);
+                state.ctx.lineTo(-w / 2, -w / 2);
+            } else if (this.type === 'tracker') {
+                state.ctx.save();
+                state.ctx.rotate(this.angle - Math.PI / 2);
+                state.ctx.moveTo(0, this.radius * 1.2);
+                state.ctx.lineTo(-this.radius * 0.8, -this.radius);
+                state.ctx.lineTo(0, -this.radius * 0.2);
+                state.ctx.lineTo(this.radius * 0.8, -this.radius);
+                state.ctx.restore();
+            } else {
+                state.ctx.moveTo(0, this.radius);
+                state.ctx.lineTo(-this.radius, -this.radius);
+                state.ctx.lineTo(0, -this.radius * 0.4);
+                state.ctx.lineTo(this.radius, -this.radius);
+            }
+            state.ctx.closePath();
+            state.ctx.fill();
+            state.ctx.stroke();
         }
-        state.ctx.closePath();
-        state.ctx.fill();
-        state.ctx.stroke();
         
         if (this.maxHp > 1) {
             const barW = this.radius * 2 + 4;
