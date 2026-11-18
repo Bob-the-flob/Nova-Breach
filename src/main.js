@@ -208,7 +208,7 @@ export function triggerNova() {
             const inv = state.invaders[i];
             inv.hp -= (5 + state.player.damageLevel);
             if (inv.hp <= 0) {
-                sound.playExplosion(inv.type === 'tank');
+                sound.playExplosion(inv.type === 'tank' || inv.type === 'battery');
                 createParticles(inv.x, inv.y, inv.color, 24);
                 addScore(inv.points);
                 if (inv.type === 'battery') {
@@ -781,7 +781,7 @@ function update() {
                 const inv = state.invaders[j];
                 const dist = Math.hypot(b.x - inv.x, b.y - inv.y);
                 if (dist < b.radius + inv.radius) {
-                    if (inv.type === 'tank' && inv.shieldActive) {
+                    if ((inv.type === 'tank' || inv.type === 'battery') && inv.shieldActive) {
                         state.bullets.splice(i, 1);
                         createParticles(b.x, b.y, '#00f0ff', 6);
                         sound.playBulletIntercept();
@@ -793,7 +793,7 @@ function update() {
                     else b.pierce--;
                     
                     if (inv.hp <= 0) {
-                        sound.playExplosion(inv.type === 'tank');
+                        sound.playExplosion(inv.type === 'tank' || inv.type === 'battery');
                         createParticles(inv.x, inv.y, inv.color, 22);
                         addScore(inv.points);
                         state.kills++;
