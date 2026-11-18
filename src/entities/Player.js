@@ -1,5 +1,5 @@
 // src/entities/Player.js
-import { state, GameState, triggerShake } from '../state.js';
+import { state, triggerShake } from '../state.js';
 import { sound } from '../audio.js';
 import Bullet from './Bullet.js';
 import { createParticles, updateHearts, endGame } from '../main.js';
@@ -25,7 +25,7 @@ export default class PlayerShip {
         this.damageLevel = 1;
         this.pierceLevel = 0;
         this.tripleChance = 0;
-        this.novaChargeRate = 0.05;
+        this.batterySpawnBonus = 0;
         this.slowAura = 0;
         this.passiveShieldInterval = 0;
         this.passiveShieldTimer = 0;
@@ -78,10 +78,6 @@ export default class PlayerShip {
                 sound.playAbility();
                 createParticles(this.x, this.y, '#00f0ff', 12);
             }
-        }
-        
-        if (this.novaCharge < 100 && state.current !== GameState.BOSS_FIGHT) {
-            this.novaCharge += this.novaChargeRate;
         }
         
         this.fireTimer++;

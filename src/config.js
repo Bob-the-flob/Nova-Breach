@@ -97,11 +97,11 @@ export const RANDOM_UPGRADE_POOL = [
     },
     {
         id: 'nova_flow',
-        name: 'Recharge Nova',
+        name: 'Traqueur de Batteries',
         icon: '🔮',
-        baseDesc: 'La Nova se recharge plus vite passivement',
-        getDesc: (lvl) => `Recharge Nova passive accrue de +${lvl * 18}%`,
-        apply: (player, lvl) => { player.novaChargeRate = 0.05 * (1 + lvl * 0.18); }
+        baseDesc: 'Augmente légèrement la fréquence d’apparition des transporteurs de batterie',
+        getDesc: (lvl) => `Probabilité d'apparition de Batteries accrue de +${Math.min(35, lvl * 5)}%`,
+        apply: (player, lvl) => { player.batterySpawnBonus = Math.min(0.35, lvl * 0.05); }
     },
     {
         id: 'emp_aura',
