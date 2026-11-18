@@ -7,7 +7,7 @@ import Invader from './entities/Invader.js';
 import PowerUp from './entities/PowerUp.js';
 import Particle from './fx/Particle.js';
 import Shockwave from './fx/Shockwave.js';
-import { startBossFight, updateBossFight, drawBoss, startBossVictoryCutscene } from './bosses/Destrier.js';
+import { startBossFight, updateBossFight, drawBoss, startBossVictoryCutscene, updateBossVictoryCutscene } from './bosses/Destrier.js';
 
 /* ==============================================================
    INITIALISATION ET CONTRÔLES HORIZONTAUX
@@ -150,13 +150,13 @@ if (touchNovaBtn) {
     touchNovaBtn.addEventListener('touchstart', (e) => {
         e.preventDefault();
         sound.init();
-        if ((state.current === GameState.PLAYING || state.current === GameState.BOSS_FIGHT) && !state.bossActive) {
+        if (state.current === GameState.PLAYING || state.current === GameState.BOSS_FIGHT) {
             triggerNova();
         }
     }, { passive: false });
     touchNovaBtn.addEventListener('click', () => {
         sound.init();
-        if ((state.current === GameState.PLAYING || state.current === GameState.BOSS_FIGHT) && !state.bossActive) {
+        if (state.current === GameState.PLAYING || state.current === GameState.BOSS_FIGHT) {
             triggerNova();
         }
     });
@@ -191,8 +191,6 @@ export function createParticles(x, y, color, count = 20) {
 }
 
 export function triggerNova() {
-    if (state.current === GameState.BOSS_FIGHT && state.boss) return;
-    
     if (state.player && state.player.novaCharge >= 98) {
         state.player.novaCharge = 0;
         sound.playNova();
@@ -204,6 +202,14 @@ export function triggerNova() {
         }
         state.enemyBullets = [];
         
+        if (state.current === GameState.BOSS_FIGHT && state.boss) {
+            state.boss.takeDamage(25 + state.player.damageLevel * 10);
+            createParticles(state.boss.x, state.boss.y, '#ff007f', 30);
+            if (state.boss.hp <= 0) {
+                startBossVictoryCutscene();
+            }
+        }
+
         for (let i = state.invaders.length - 1; i >= 0; i--) {
             const inv = state.invaders[i];
             inv.hp -= (5 + state.player.damageLevel);
@@ -238,34 +244,37 @@ const hudWave = document.getElementById('hud-wave');
 const hudNovaFill = document.getElementById('hud-nova-fill');
 const hudHearts = document.getElementById('hud-hearts');
 const hudStatus = document.getElementById('hud-status');
+const bossHealthEl = document.getElementById('boss-health');
+const bossHealthFill = document.getElementById('boss-health-fill');
 
 export function updateHud() {
     if (hudScore) hudScore.textContent = state.score.toLocaleString();
     if (hudCombo) hudCombo.textContent = `x${state.combo.toFixed(1)} Combo`;
     if (hudWave) {
-        hudWave.textContent = state.bossActive ? 'Le noble Destrier' : state.wave;
+        hudWave.textContent = state.bossActive ? 'BOSS' : state.wave;
     }
     if (hudStatus) {
         if (state.player && state.player.empTimer > 0) hudStatus.classList.remove('hidden');
         else hudStatus.classList.add('hidden');
     }
     if (hudNovaFill) {
-        if (state.bossActive && state.boss) {
-            hudNovaFill.style.width = `${Math.max(0, Math.min(100, (1 - state.boss.hp / state.boss.maxHp) * 100))}%`;
+        hudNovaFill.style.width = `${state.player ? state.player.novaCharge : 0}%`;
+    }
+    if (bossHealthEl && bossHealthFill) {
+        if (state.bossActive && state.boss && !state.boss.defeated) {
+            bossHealthEl.classList.remove('hidden');
+            const pct = Math.max(0, Math.min(100, (state.boss.hp / state.boss.maxHp) * 100));
+            bossHealthFill.style.width = `${pct}%`;
         } else {
-            hudNovaFill.style.width = `${state.player ? state.player.novaCharge : 0}%`;
+            bossHealthEl.classList.add('hidden');
         }
     }
     if (touchNovaBtn) {
-        if (state.bossActive) {
-            touchNovaBtn.classList.add('boss-disabled');
-            touchNovaBtn.classList.remove('ready');
-        } else if (state.player && state.player.novaCharge >= 98) {
+        touchNovaBtn.classList.remove('boss-disabled');
+        if (state.player && state.player.novaCharge >= 98) {
             touchNovaBtn.classList.add('ready');
-            touchNovaBtn.classList.remove('boss-disabled');
         } else {
             touchNovaBtn.classList.remove('ready');
-            touchNovaBtn.classList.remove('boss-disabled');
         }
     }
 }
@@ -654,21 +663,7 @@ function update() {
     }
     
     if (state.current === GameState.BOSS_CUTSCENE) {
-        for (let i = state.shockwaves.length - 1; i >= 0; i--) {
-            const sw = state.shockwaves[i];
-            sw.update();
-            if (sw.finished) state.shockwaves.splice(i, 1);
-        }
-        state.victoryCutsceneTimer++;
-        if (state.boss && state.victoryCutsceneTimer >= 55) {
-            state.boss = null;
-            state.bossActive = false;
-            updateHearts();
-            updateHud();
-        }
-        if (state.victoryCutsceneTimer >= 180) {
-            showVictoryScreen();
-        }
+        updateBossVictoryCutscene();
         return;
     }
     if (state.current === GameState.BOSS_REWARDS) return;
